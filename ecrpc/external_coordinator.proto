@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package ecrpc;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/ziggie1984/Distributed-Mission-Control-for-LND/ecrpc";
+
+service ExternalCoordinator {
+    // RegisterMissionControl registers mission control data.
+    rpc RegisterMissionControl(RegisterMissionControlRequest) returns (RegisterMissionControlResponse) {
+        option (google.api.http) = {
+            post: "/v1/registermissioncontrol"
+            body: "*"
+        };
+    }
+
+    // QueryAggregatedMissionControl queries aggregated mission control data.
+    rpc QueryAggregatedMissionControl(QueryAggregatedMissionControlRequest) returns (QueryAggregatedMissionControlResponse) {
+        option (google.api.http) = {
+            get: "/v1/queryaggregatedmissioncontrol"
+        };
+    }
+}
+
+// RegisterMissionControlRequest is the request message for registering mission
+// control data.
+message RegisterMissionControlRequest {
+    repeated PairHistory pairs = 1;
+}
+
+// RegisterMissionControlResponse is the response message for registering
+// mission control data.
+message RegisterMissionControlResponse {
+}
+
+// QueryAggregatedMissionControlRequest is the request message for querying
+// aggregated mission control data.
+message QueryAggregatedMissionControlRequest {
+}
+
+// QueryAggregatedMissionControlResponse is the response message for querying
+// aggregated mission control data.
+//
+// NOTE: This is the same message that is found in LND.
+message QueryAggregatedMissionControlResponse {
+    repeated PairHistory pairs = 1;
+}
+
+// PairHistory contains the mission control state for a particular node pair.
+message PairHistory {
+    // The source node pubkey of the pair.
+    bytes node_from = 1;
+
+    // The destination node pubkey of the pair.
+    bytes node_to = 2;
+
+    // History data for the pair.
+    PairData history = 3;
+}
+
+// PairData contains the detailed history data for a node pair.
+message PairData {
+    // Time of last failure.
+    int64 fail_time = 1;
+
+    // Lowest amount that failed to forward rounded to whole sats. This may be
+    // set to zero if the failure is independent of amount.
+    int64 fail_amt_sat = 2;
+
+    // Lowest amount that failed to forward in millisats. This may be set to
+    // zero if the failure is independent of amount.
+    int64 fail_amt_msat = 3;
+
+    // Time of last success.
+    int64 success_time = 4;
+
+    // Highest amount that we could successfully forward rounded to whole sats.
+    int64 success_amt_sat = 5;
+
+    // Highest amount that we could successfully forward in millisats.
+    int64 success_amt_msat = 6;
+}
