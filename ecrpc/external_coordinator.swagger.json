@@ -1,0 +1,193 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "ecrpc/external_coordinator.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "ExternalCoordinator"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/queryaggregatedmissioncontrol": {
+      "get": {
+        "summary": "QueryAggregatedMissionControl queries aggregated mission control data.",
+        "operationId": "ExternalCoordinator_QueryAggregatedMissionControl",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ecrpcQueryAggregatedMissionControlResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "ExternalCoordinator"
+        ]
+      }
+    },
+    "/v1/registermissioncontrol": {
+      "post": {
+        "summary": "RegisterMissionControl registers mission control data.",
+        "operationId": "ExternalCoordinator_RegisterMissionControl",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/ecrpcRegisterMissionControlResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "RegisterMissionControlRequest is the request message for registering mission\ncontrol data.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ecrpcRegisterMissionControlRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ExternalCoordinator"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "ecrpcPairData": {
+      "type": "object",
+      "properties": {
+        "failTime": {
+          "type": "string",
+          "format": "int64",
+          "description": "Time of last failure."
+        },
+        "failAmtSat": {
+          "type": "string",
+          "format": "int64",
+          "description": "Lowest amount that failed to forward rounded to whole sats. This may be\nset to zero if the failure is independent of amount."
+        },
+        "failAmtMsat": {
+          "type": "string",
+          "format": "int64",
+          "description": "Lowest amount that failed to forward in millisats. This may be set to\nzero if the failure is independent of amount."
+        },
+        "successTime": {
+          "type": "string",
+          "format": "int64",
+          "description": "Time of last success."
+        },
+        "successAmtSat": {
+          "type": "string",
+          "format": "int64",
+          "description": "Highest amount that we could successfully forward rounded to whole sats."
+        },
+        "successAmtMsat": {
+          "type": "string",
+          "format": "int64",
+          "description": "Highest amount that we could successfully forward in millisats."
+        }
+      },
+      "description": "PairData contains the detailed history data for a node pair."
+    },
+    "ecrpcPairHistory": {
+      "type": "object",
+      "properties": {
+        "nodeFrom": {
+          "type": "string",
+          "format": "byte",
+          "description": "The source node pubkey of the pair."
+        },
+        "nodeTo": {
+          "type": "string",
+          "format": "byte",
+          "description": "The destination node pubkey of the pair."
+        },
+        "history": {
+          "$ref": "#/definitions/ecrpcPairData",
+          "description": "History data for the pair."
+        }
+      },
+      "description": "PairHistory contains the mission control state for a particular node pair."
+    },
+    "ecrpcQueryAggregatedMissionControlResponse": {
+      "type": "object",
+      "properties": {
+        "pairs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/ecrpcPairHistory"
+          }
+        }
+      },
+      "description": "QueryAggregatedMissionControlResponse is the response message for querying\naggregated mission control data.\n\nNOTE: This is the same message that is found in LND."
+    },
+    "ecrpcRegisterMissionControlRequest": {
+      "type": "object",
+      "properties": {
+        "pairs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/ecrpcPairHistory"
+          }
+        }
+      },
+      "description": "RegisterMissionControlRequest is the request message for registering mission\ncontrol data."
+    },
+    "ecrpcRegisterMissionControlResponse": {
+      "type": "object",
+      "description": "RegisterMissionControlResponse is the response message for registering\nmission control data."
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    }
+  }
+}
