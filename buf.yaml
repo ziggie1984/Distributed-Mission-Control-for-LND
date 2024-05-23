@@ -1,0 +1,11 @@
+version: v1
+name: buf.build/ziggie1984/distributed-mission-control-for-lnd
+deps:
+  - buf.build/grpc-ecosystem/grpc-gateway
+  - buf.build/googleapis/googleapis
+lint:
+  use:
+    - DEFAULT
+breaking:
+  use:
+    - FILE
