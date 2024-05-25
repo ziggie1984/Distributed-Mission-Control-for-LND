@@ -159,6 +159,12 @@
     },
     "ecrpcRegisterMissionControlResponse": {
       "type": "object",
+      "properties": {
+        "successMessage": {
+          "type": "string",
+          "description": "Success message indicating the number of pairs successfully registered\nand stale pairs removed (if any)."
+        }
+      },
       "description": "RegisterMissionControlResponse is the response message for registering\nmission control data."
     },
     "protobufAny": {
