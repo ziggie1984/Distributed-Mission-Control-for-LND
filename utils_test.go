@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -70,4 +71,26 @@ func TestCheckFilesExist(t *testing.T) {
 				"file list",
 		)
 	})
+}
+
+// TestFormatDuration tests the formatDuration function.
+func TestFormatDuration(t *testing.T) {
+	tests := []struct {
+		duration time.Duration // Duration to be formatted
+		expected string        // Expected formatted string
+	}{
+		{duration: time.Second * 45, expected: "0 hours, 0 minutes, 45 seconds"},                                 // Less than a minute
+		{duration: time.Minute * 60, expected: "1 hours, 0 minutes, 0 seconds"},                                  // Exactly one hour
+		{duration: time.Minute*120 + time.Second*30, expected: "2 hours, 0 minutes, 30 seconds"},                 // More than one hour
+		{duration: time.Hour*25 + time.Minute*30 + time.Second*15, expected: "25 hours, 30 minutes, 15 seconds"}, // Spanning multiple days
+		{duration: 0, expected: "0 hours, 0 minutes, 0 seconds"},                                                 // Zero duration
+		{duration: -time.Minute * 30, expected: "0 hours, -30 minutes, 0 seconds"},                               // Negative duration
+	}
+
+	for _, test := range tests {
+		result := formatDuration(test.duration)
+		if result != test.expected {
+			t.Errorf("formatDuration(%v) returned %s, expected %s", test.duration, result, test.expected)
+		}
+	}
 }
