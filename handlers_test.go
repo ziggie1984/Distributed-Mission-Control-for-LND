@@ -71,7 +71,7 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			DatabaseDirPath: tempDir,
 			DatabaseFile:    "test.db",
 			FileLockTimeout: 10 * time.Second,
-			MaxBatchDelay:   10 * time.Millisecond,
+			MaxBatchDelay:   time.Nanosecond,
 			MaxBatchSize:    1000,
 		},
 	}
@@ -98,10 +98,10 @@ func TestExternalCoordinatorServer(t *testing.T) {
 						History: &ecrpc.PairData{
 							FailTime:       failTime,
 							FailAmtSat:     100,
-							FailAmtMsat:    1000,
+							FailAmtMsat:    100_000,
 							SuccessTime:    successTime,
 							SuccessAmtSat:  200,
-							SuccessAmtMsat: 2000,
+							SuccessAmtMsat: 200_000,
 						},
 					},
 				},
@@ -199,6 +199,343 @@ func TestExternalCoordinatorServer(t *testing.T) {
 				t, codes.InvalidArgument, status.Code(err),
 			)
 		})
+
+		// Case 7: Negative fail amount.
+		t.Run("NegativeFailAmount", func(t *testing.T) {
+			nodeFrom, nodeTo := generateTestKeys(t)
+			req := &ecrpc.RegisterMissionControlRequest{
+				Pairs: []*ecrpc.PairHistory{
+					{
+						NodeFrom: nodeFrom,
+						NodeTo:   nodeTo,
+						History: &ecrpc.PairData{
+							FailAmtSat:  -100,
+							FailAmtMsat: -100 * 1000, // Conversion from sat to msat
+						},
+					},
+				},
+			}
+			_, err := server.RegisterMissionControl(
+				context.Background(), req,
+			)
+			require.Error(t, err)
+			require.Equal(
+				t, codes.InvalidArgument, status.Code(err),
+			)
+		})
+
+		// Case 8: Negative success amount.
+		t.Run("NegativeSuccessAmount", func(t *testing.T) {
+			nodeFrom, nodeTo := generateTestKeys(t)
+			req := &ecrpc.RegisterMissionControlRequest{
+				Pairs: []*ecrpc.PairHistory{
+					{
+						NodeFrom: nodeFrom,
+						NodeTo:   nodeTo,
+						History: &ecrpc.PairData{
+							SuccessAmtSat:  -200,
+							SuccessAmtMsat: -200 * 1000, // Conversion from sat to msat
+						},
+					},
+				},
+			}
+			_, err := server.RegisterMissionControl(
+				context.Background(), req,
+			)
+			require.Error(t, err)
+			require.Equal(
+				t, codes.InvalidArgument, status.Code(err),
+			)
+		})
+
+		// Case 9: Inconsistent conversion from sat to msat for fail
+		// amount.
+		t.Run("InconsistentFailAmountConversion", func(t *testing.T) {
+			nodeFrom, nodeTo := generateTestKeys(t)
+			req := &ecrpc.RegisterMissionControlRequest{
+				Pairs: []*ecrpc.PairHistory{
+					{
+						NodeFrom: nodeFrom,
+						NodeTo:   nodeTo,
+						History: &ecrpc.PairData{
+							FailAmtSat:  100,
+							FailAmtMsat: 50 * 1000, // Inconsistent conversion
+						},
+					},
+				},
+			}
+			_, err := server.RegisterMissionControl(
+				context.Background(), req,
+			)
+			require.Error(t, err)
+			require.Equal(
+				t, codes.InvalidArgument, status.Code(err),
+			)
+		})
+
+		// Case 10: Inconsistent conversion from sat to msat for
+		// success amount.
+		t.Run("InconsistentSuccessAmountConversion", func(t *testing.T) {
+			nodeFrom, nodeTo := generateTestKeys(t)
+			req := &ecrpc.RegisterMissionControlRequest{
+				Pairs: []*ecrpc.PairHistory{
+					{
+						NodeFrom: nodeFrom,
+						NodeTo:   nodeTo,
+						History: &ecrpc.PairData{
+							SuccessAmtSat:  200,
+							SuccessAmtMsat: 150 * 1000, // Inconsistent conversion
+						},
+					},
+				},
+			}
+			_, err := server.RegisterMissionControl(
+				context.Background(), req,
+			)
+			require.Error(t, err)
+			require.Equal(
+				t, codes.InvalidArgument, status.Code(err),
+			)
+		})
+
+		// Case 11: Non-stale history.
+		t.Run("NonStaleHistory", func(t *testing.T) {
+			// Clear the database.
+			err = clearDatabase(db)
+			require.NoError(t, err)
+
+			// Register non-stale history data.
+			nodeFrom, nodeTo := generateTestKeys(t)
+			failTime := time.Now().Add(-5 * time.Minute).Unix()
+			successTime := time.Now().Add(-2 * time.Minute).Unix()
+			req := &ecrpc.RegisterMissionControlRequest{
+				Pairs: []*ecrpc.PairHistory{
+					{
+						NodeFrom: nodeFrom,
+						NodeTo:   nodeTo,
+						History: &ecrpc.PairData{
+							FailTime:    failTime,
+							SuccessTime: successTime,
+						},
+					},
+				},
+			}
+
+			resp, err := server.RegisterMissionControl(
+				context.Background(), req,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			q_resp, q_err := server.QueryAggregatedMissionControl(
+				context.Background(),
+				&ecrpc.QueryAggregatedMissionControlRequest{},
+			)
+			require.NoError(t, q_err)
+			require.NotNil(t, q_resp)
+
+			// Check that no data was removed cause there is no
+			// stale data.
+			require.Len(t, q_resp.Pairs, 1)
+		})
+
+		// Case 12: Stale history.
+		t.Run("StaleHistory", func(t *testing.T) {
+			// Clear the database.
+			err = clearDatabase(db)
+			require.NoError(t, err)
+
+			// Register stale history data.
+			nodeFrom, nodeTo := generateTestKeys(t)
+			failTime := time.Now().Add(-15 * time.Minute).Unix()
+			successTime := time.Now().Add(-12 * time.Minute).Unix()
+			req := &ecrpc.RegisterMissionControlRequest{
+				Pairs: []*ecrpc.PairHistory{
+					{
+						NodeFrom: nodeFrom,
+						NodeTo:   nodeTo,
+						History: &ecrpc.PairData{
+							FailTime:    failTime,
+							SuccessTime: successTime,
+						},
+					},
+				},
+			}
+
+			_, err := server.RegisterMissionControl(
+				context.Background(), req,
+			)
+			require.Error(t, err)
+
+			q_resp, q_err := server.QueryAggregatedMissionControl(
+				context.Background(),
+				&ecrpc.QueryAggregatedMissionControlRequest{},
+			)
+			require.NoError(t, q_err)
+
+			// Check that there are no data in the db cause all
+			// data was stale.
+			require.Empty(t, q_resp.Pairs)
+		})
+
+		// Case 13: Register new pair with old success and fail times
+		// and verify merging works correctly by persisting only the
+		// already existing pair recent times.
+		t.Run("RegisterNewPairWithOldTimeAndMerge", func(t *testing.T) {
+			// Clear the database.
+			err = clearDatabase(db)
+			require.NoError(t, err)
+
+			// Register a pair with current unix time.
+			nodeFrom, nodeTo := generateTestKeys(t)
+			failTime := time.Now().Unix()
+			successTime := time.Now().Unix()
+			req := &ecrpc.RegisterMissionControlRequest{
+				Pairs: []*ecrpc.PairHistory{
+					{
+						NodeFrom: nodeFrom,
+						NodeTo:   nodeTo,
+						History: &ecrpc.PairData{
+							FailTime:       failTime,
+							FailAmtSat:     100,
+							FailAmtMsat:    100_000,
+							SuccessTime:    successTime,
+							SuccessAmtSat:  200,
+							SuccessAmtMsat: 200_000,
+						},
+					},
+				},
+			}
+			resp, err := server.RegisterMissionControl(
+				context.Background(), req,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			// Register a new pair with same key but with older
+			// success and failed times.
+			oSuccessTime := time.Now().Add(-5 * time.Minute).Unix()
+			oFailTime := time.Now().Add(-5 * time.Minute).Unix()
+			req = &ecrpc.RegisterMissionControlRequest{
+				Pairs: []*ecrpc.PairHistory{
+					{
+						NodeFrom: nodeFrom,
+						NodeTo:   nodeTo,
+						History: &ecrpc.PairData{
+							FailTime:       oFailTime,
+							FailAmtSat:     100,
+							FailAmtMsat:    100_000,
+							SuccessTime:    oSuccessTime,
+							SuccessAmtSat:  200,
+							SuccessAmtMsat: 200_000,
+						},
+					},
+				},
+			}
+			resp, err = server.RegisterMissionControl(
+				context.Background(), req,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			q_resp, q_err := server.QueryAggregatedMissionControl(
+				context.Background(),
+				&ecrpc.QueryAggregatedMissionControlRequest{},
+			)
+			require.NoError(t, q_err)
+			require.NotNil(t, q_resp)
+			require.Len(t, q_resp.Pairs, 1)
+
+			// Check the times stored are only the recent times.
+			require.Equal(
+				t, q_resp.Pairs[0].History.SuccessTime,
+				successTime,
+			)
+			require.Equal(
+				t, q_resp.Pairs[0].History.FailTime,
+				failTime,
+			)
+		})
+
+		// Case 14: Register new pair with more recent success and fail
+		// times and verify merging works correctly by persisting only
+		// the new pair recent times.
+		t.Run("RegisterNewPairWithNewTimeAndMerge", func(t *testing.T) {
+			// Clear the database.
+			err = clearDatabase(db)
+			require.NoError(t, err)
+
+			// Register a pair with current unix time.
+			nodeFrom, nodeTo := generateTestKeys(t)
+			failTime := time.Now().Unix()
+			successTime := time.Now().Unix()
+			req := &ecrpc.RegisterMissionControlRequest{
+				Pairs: []*ecrpc.PairHistory{
+					{
+						NodeFrom: nodeFrom,
+						NodeTo:   nodeTo,
+						History: &ecrpc.PairData{
+							FailTime:       failTime,
+							FailAmtSat:     100,
+							FailAmtMsat:    100_000,
+							SuccessTime:    successTime,
+							SuccessAmtSat:  200,
+							SuccessAmtMsat: 200_000,
+						},
+					},
+				},
+			}
+			resp, err := server.RegisterMissionControl(
+				context.Background(), req,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			// Register a new pair with same key but with recent
+			// success and failed times.
+			rSuccessTime := time.Now().Add(5 * time.Minute).Unix()
+			rFailTime := time.Now().Add(5 * time.Minute).Unix()
+			req = &ecrpc.RegisterMissionControlRequest{
+				Pairs: []*ecrpc.PairHistory{
+					{
+						NodeFrom: nodeFrom,
+						NodeTo:   nodeTo,
+						History: &ecrpc.PairData{
+							FailTime:       rFailTime,
+							FailAmtSat:     100,
+							FailAmtMsat:    100_000,
+							SuccessTime:    rSuccessTime,
+							SuccessAmtSat:  200,
+							SuccessAmtMsat: 200_000,
+						},
+					},
+				},
+			}
+			resp, err = server.RegisterMissionControl(
+				context.Background(), req,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			q_resp, q_err := server.QueryAggregatedMissionControl(
+				context.Background(),
+				&ecrpc.QueryAggregatedMissionControlRequest{},
+			)
+			require.NoError(t, q_err)
+			require.NotNil(t, q_resp)
+			require.Len(t, q_resp.Pairs, 1)
+
+			// Check the times stored are only the recent times
+			// in the new pair registered.
+			require.Equal(
+				t, q_resp.Pairs[0].History.SuccessTime,
+				rSuccessTime,
+			)
+			require.Equal(
+				t, q_resp.Pairs[0].History.FailTime,
+				rFailTime,
+			)
+		})
 	})
 
 	t.Run("QueryAggregatedMissionControl", func(t *testing.T) {
@@ -221,10 +558,10 @@ func TestExternalCoordinatorServer(t *testing.T) {
 							History: &ecrpc.PairData{
 								FailTime:       failTime,
 								FailAmtSat:     100,
-								FailAmtMsat:    1000,
+								FailAmtMsat:    100_000,
 								SuccessTime:    successTime,
 								SuccessAmtSat:  200,
-								SuccessAmtMsat: 2000,
+								SuccessAmtMsat: 200_000,
 							},
 						},
 					},
@@ -237,10 +574,6 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			// Wait a bit to let the database execute the write
-			// batch transactions.
-			time.Sleep(1 * time.Second)
-
 			require.Len(t, resp.Pairs, 1)
 			require.Equal(t, nodeFrom, resp.Pairs[0].NodeFrom)
 			require.Equal(t, nodeTo, resp.Pairs[0].NodeTo)
@@ -282,10 +615,10 @@ func TestExternalCoordinatorServer(t *testing.T) {
 					History: &ecrpc.PairData{
 						FailTime:       failTime1,
 						FailAmtSat:     100,
-						FailAmtMsat:    1000,
+						FailAmtMsat:    100_000,
 						SuccessTime:    successTime1,
 						SuccessAmtSat:  200,
-						SuccessAmtMsat: 2000,
+						SuccessAmtMsat: 200_000,
 					},
 				},
 				{
@@ -294,10 +627,10 @@ func TestExternalCoordinatorServer(t *testing.T) {
 					History: &ecrpc.PairData{
 						FailTime:       failTime2,
 						FailAmtSat:     100,
-						FailAmtMsat:    1000,
+						FailAmtMsat:    100_000,
 						SuccessTime:    successTime2,
 						SuccessAmtSat:  200,
-						SuccessAmtMsat: 2000,
+						SuccessAmtMsat: 200_000,
 					},
 				},
 				{
@@ -306,10 +639,10 @@ func TestExternalCoordinatorServer(t *testing.T) {
 					History: &ecrpc.PairData{
 						FailTime:       failTime2,
 						FailAmtSat:     100,
-						FailAmtMsat:    1000,
+						FailAmtMsat:    100_000,
 						SuccessTime:    successTime2,
 						SuccessAmtSat:  200,
-						SuccessAmtMsat: 2000,
+						SuccessAmtMsat: 200_000,
 					},
 				},
 			},
@@ -320,11 +653,14 @@ func TestExternalCoordinatorServer(t *testing.T) {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
-		// Start the cleanup routine.
-		server.RunCleanupRoutine(ticker)
+		// Create a cancellable context for the cleanup routine.
+		cleanupCtx, cleanupCancel := context.WithCancel(
+			context.Background(),
+		)
+		defer cleanupCancel()
 
-		// Wait for some time to ensure the ticker ticks at least once.
-		time.Sleep(3 * time.Second)
+		// Start the cleanup routine.
+		server.RunCleanupRoutine(cleanupCtx, ticker)
 
 		// After waiting for the ticker to tick, query the database to
 		// check if stale data has been removed.
@@ -361,10 +697,10 @@ func TestExternalCoordinatorServer(t *testing.T) {
 					History: &ecrpc.PairData{
 						FailTime:       failTime1,
 						FailAmtSat:     100,
-						FailAmtMsat:    1000,
+						FailAmtMsat:    100_000,
 						SuccessTime:    successTime1,
 						SuccessAmtSat:  200,
-						SuccessAmtMsat: 2000,
+						SuccessAmtMsat: 200_000,
 					},
 				},
 				{
@@ -373,10 +709,10 @@ func TestExternalCoordinatorServer(t *testing.T) {
 					History: &ecrpc.PairData{
 						FailTime:       failTime2,
 						FailAmtSat:     100,
-						FailAmtMsat:    1000,
+						FailAmtMsat:    100_000,
 						SuccessTime:    successTime2,
 						SuccessAmtSat:  200,
-						SuccessAmtMsat: 2000,
+						SuccessAmtMsat: 200_000,
 					},
 				},
 				{
@@ -385,10 +721,10 @@ func TestExternalCoordinatorServer(t *testing.T) {
 					History: &ecrpc.PairData{
 						FailTime:       failTime2,
 						FailAmtSat:     100,
-						FailAmtMsat:    1000,
+						FailAmtMsat:    100_000,
 						SuccessTime:    successTime2,
 						SuccessAmtSat:  200,
-						SuccessAmtMsat: 2000,
+						SuccessAmtMsat: 200_000,
 					},
 				},
 			},
@@ -452,7 +788,251 @@ func TestExternalCoordinatorServer(t *testing.T) {
 		})
 	})
 
+	t.Run("mergePairData", func(t *testing.T) {
+		t.Parallel()
+
+		// Case 1: New data has later success time.
+		t.Run("NewDataLaterSuccessTime", func(t *testing.T) {
+			existingData := &ecrpc.PairData{
+				SuccessTime:    time.Now().Unix(),
+				SuccessAmtSat:  100,
+				SuccessAmtMsat: 100_000,
+				FailTime:       time.Now().Add(-10 * time.Minute).Unix(),
+				FailAmtSat:     50,
+				FailAmtMsat:    50_000,
+			}
+
+			newData := &ecrpc.PairData{
+				SuccessTime:    time.Now().Add(5 * time.Minute).Unix(),
+				SuccessAmtSat:  200,
+				SuccessAmtMsat: 200_000,
+				FailTime:       time.Now().Add(-8 * time.Minute).Unix(),
+				FailAmtSat:     70,
+				FailAmtMsat:    70_000,
+			}
+
+			mergePairData(existingData, newData)
+
+			require.Equal(
+				t, newData.SuccessTime,
+				existingData.SuccessTime,
+			)
+			require.Equal(
+				t, newData.SuccessAmtSat,
+				existingData.SuccessAmtSat,
+			)
+			require.Equal(
+				t, newData.SuccessAmtMsat,
+				existingData.SuccessAmtMsat,
+			)
+			require.Equal(
+				t, existingData.FailTime,
+				existingData.FailTime,
+			)
+			require.Equal(
+				t, existingData.FailAmtSat,
+				existingData.FailAmtSat,
+			)
+			require.Equal(
+				t, existingData.FailAmtMsat,
+				existingData.FailAmtMsat,
+			)
+		})
+
+		// Case 2: Existing data has later success time.
+		t.Run("ExistingDataLaterSuccessTime", func(t *testing.T) {
+			existingData := &ecrpc.PairData{
+				SuccessTime:    time.Now().Add(5 * time.Minute).Unix(),
+				SuccessAmtSat:  200,
+				SuccessAmtMsat: 200_000,
+				FailTime:       time.Now().Add(-8 * time.Minute).Unix(),
+				FailAmtSat:     70,
+				FailAmtMsat:    70_000,
+			}
+
+			newData := &ecrpc.PairData{
+				SuccessTime:    time.Now().Unix(),
+				SuccessAmtSat:  100,
+				SuccessAmtMsat: 100_000,
+				FailTime:       time.Now().Add(-10 * time.Minute).Unix(),
+				FailAmtSat:     50,
+				FailAmtMsat:    50_000,
+			}
+
+			mergePairData(existingData, newData)
+
+			require.Equal(
+				t, existingData.SuccessTime,
+				existingData.SuccessTime,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtSat,
+				existingData.SuccessAmtSat,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtMsat,
+				existingData.SuccessAmtMsat,
+			)
+			require.Equal(
+				t, existingData.FailTime,
+				existingData.FailTime,
+			)
+			require.Equal(
+				t, existingData.FailAmtSat,
+				existingData.FailAmtSat,
+			)
+			require.Equal(
+				t, existingData.FailAmtMsat,
+				existingData.FailAmtMsat,
+			)
+		})
+
+		// Case 3: New data has later fail time.
+		t.Run("NewDataLaterFailTime", func(t *testing.T) {
+			existingData := &ecrpc.PairData{
+				SuccessTime:    time.Now().Add(-5 * time.Minute).Unix(),
+				SuccessAmtSat:  200,
+				SuccessAmtMsat: 200_000,
+				FailTime:       time.Now().Unix(),
+				FailAmtSat:     70,
+				FailAmtMsat:    70_000,
+			}
+
+			newData := &ecrpc.PairData{
+				SuccessTime:    time.Now().Add(-8 * time.Minute).Unix(),
+				SuccessAmtSat:  100,
+				SuccessAmtMsat: 100_000,
+				FailTime:       time.Now().Add(5 * time.Minute).Unix(),
+				FailAmtSat:     50,
+				FailAmtMsat:    50_000,
+			}
+
+			mergePairData(existingData, newData)
+
+			require.Equal(
+				t, existingData.SuccessTime,
+				existingData.SuccessTime,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtSat,
+				existingData.SuccessAmtSat,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtMsat,
+				existingData.SuccessAmtMsat,
+			)
+			require.Equal(
+				t, newData.FailTime, existingData.FailTime,
+			)
+			require.Equal(
+				t, newData.FailAmtSat, existingData.FailAmtSat,
+			)
+			require.Equal(
+				t, newData.FailAmtMsat,
+				existingData.FailAmtMsat,
+			)
+		})
+
+		// Case 4: Existing data has later fail time.
+		t.Run("ExistingDataLaterFailTime", func(t *testing.T) {
+			existingData := &ecrpc.PairData{
+				SuccessTime:    time.Now().Add(-8 * time.Minute).Unix(),
+				SuccessAmtSat:  100,
+				SuccessAmtMsat: 100_000,
+				FailTime:       time.Now().Add(5 * time.Minute).Unix(),
+				FailAmtSat:     50,
+				FailAmtMsat:    50_000,
+			}
+
+			newData := &ecrpc.PairData{
+				SuccessTime:    time.Now().Add(-5 * time.Minute).Unix(),
+				SuccessAmtSat:  200,
+				SuccessAmtMsat: 200_000,
+				FailTime:       time.Now().Unix(),
+				FailAmtSat:     70,
+				FailAmtMsat:    70_000,
+			}
+
+			mergePairData(existingData, newData)
+
+			require.Equal(
+				t, newData.SuccessTime,
+				existingData.SuccessTime,
+			)
+			require.Equal(
+				t, newData.SuccessAmtSat,
+				existingData.SuccessAmtSat,
+			)
+			require.Equal(
+				t, newData.SuccessAmtMsat,
+				existingData.SuccessAmtMsat,
+			)
+			require.Equal(
+				t, existingData.FailTime,
+				existingData.FailTime,
+			)
+			require.Equal(
+				t, existingData.FailAmtSat,
+				existingData.FailAmtSat,
+			)
+			require.Equal(
+				t, existingData.FailAmtMsat,
+				existingData.FailAmtMsat,
+			)
+		})
+
+		// Case 5: Both new and existing data have the same timestamps.
+		t.Run("SameTimestamps", func(t *testing.T) {
+			existingData := &ecrpc.PairData{
+				SuccessTime:    time.Now().Add(-5 * time.Minute).Unix(),
+				SuccessAmtSat:  100,
+				SuccessAmtMsat: 100_000,
+				FailTime:       time.Now().Unix(),
+				FailAmtSat:     50,
+				FailAmtMsat:    50_000,
+			}
+
+			newData := &ecrpc.PairData{
+				SuccessTime:    existingData.SuccessTime,
+				SuccessAmtSat:  200,
+				SuccessAmtMsat: 200_000,
+				FailTime:       existingData.FailTime,
+				FailAmtSat:     70,
+				FailAmtMsat:    70_000,
+			}
+
+			mergePairData(existingData, newData)
+
+			// The function should not modify existingData in this case.
+			require.Equal(
+				t, existingData.SuccessTime, existingData.SuccessTime,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtSat,
+				existingData.SuccessAmtSat,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtMsat,
+				existingData.SuccessAmtMsat,
+			)
+			require.Equal(
+				t, existingData.FailTime,
+				existingData.FailTime,
+			)
+			require.Equal(
+				t, existingData.FailAmtSat,
+				existingData.FailAmtSat,
+			)
+			require.Equal(
+				t, existingData.FailAmtMsat,
+				existingData.FailAmtMsat,
+			)
+		})
+	})
+
 	t.Run("isHistoryStale", func(t *testing.T) {
+		t.Parallel()
+
 		// Case 1: Non-stale history.
 		t.Run("NonStaleHistory", func(t *testing.T) {
 			failTime := time.Now().Add(-5 * time.Minute).Unix()
@@ -479,6 +1059,17 @@ func TestExternalCoordinatorServer(t *testing.T) {
 				history, config.Server.HistoryThresholdDuration,
 			)
 			require.True(t, stale)
+
+			// Make one of the times (failTime) non-stale.
+			failTime = time.Now().Add(-5 * time.Minute).Unix()
+			history = &ecrpc.PairData{
+				FailTime:    failTime,
+				SuccessTime: successTime,
+			}
+			stale = isHistoryStale(
+				history, config.Server.HistoryThresholdDuration,
+			)
+			require.False(t, stale)
 		})
 	})
 }
