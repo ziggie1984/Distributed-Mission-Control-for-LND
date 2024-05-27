@@ -30,7 +30,11 @@ func NewExternalCoordinatorServer(config *Config,
 	return &externalCoordinatorServer{db: db, config: config}
 }
 
-// RegisterMissionControl registers mission control data.
+// RegisterMissionControl registers mission control data. It processes a
+// RegisterMissionControlRequest to aggregate user-provided pair data with
+// existing data in the database, removing stale history pairs and storing the
+// aggregated data. This method ensures data consistency and enhances
+// performance by utilizing batch operations over individual updates.
 func (s *externalCoordinatorServer) RegisterMissionControl(ctx context.Context,
 	req *ecrpc.RegisterMissionControlRequest) (*ecrpc.RegisterMissionControlResponse, error) {
 	// Validate the request data first.
@@ -51,22 +55,65 @@ func (s *externalCoordinatorServer) RegisterMissionControl(ctx context.Context,
 			stalePairsRemoved)
 	}
 
+	// Initialize a map to aggregate mission control data.
+	aggregatedData := make(map[[66]byte]*ecrpc.PairData)
+
 	// Use Batch over Update to reduce tx commits overhead and database
 	// locking, enhancing performance and responsiveness under high write
 	// loads.
 	err := s.db.Batch(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(DatabaseBucketName))
-		for _, pair := range req.Pairs {
-			key := append(pair.NodeFrom, pair.NodeTo...)
 
-			data, err := json.Marshal(pair.History)
+		// Retrieve all data from the database in order to aggregate
+		// them later with user registered data.
+		err := b.ForEach(func(k, v []byte) error {
+			// Unmarshal the pair history data.
+			history := &ecrpc.PairData{}
+			if err := json.Unmarshal(v, history); err != nil {
+				msg := "failed to unmarshal history data: %v"
+				logrus.Errorf(msg, err)
+				return status.Errorf(codes.Internal, msg, err)
+			}
+
+			aggregatedData[[66]byte(k)] = history
+
+			return nil
+		})
+		if err != nil {
+			msg := "error while retrieving all data in the " +
+				"bucket to aggregate them with user " +
+				"registered data: %v"
+			logrus.Errorf(msg, err)
+			return status.Errorf(codes.Internal, msg, err)
+		}
+
+		// Aggregate all data in the database with user registered data.
+		for _, pair := range req.Pairs {
+			// Aggregate the data based on the key.
+			key := [66]byte(append(pair.NodeFrom, pair.NodeTo...))
+
+			if existingData, ok := aggregatedData[key]; ok {
+				// If data for the key exists, merge it with
+				// the current data.
+				mergePairData(existingData, pair.History)
+			} else {
+				// If no data exists for the key, set it.
+				aggregatedData[key] = pair.History
+			}
+		}
+
+		// Store the aggregated data.
+		for key, value := range aggregatedData {
+			// Marshal the pair history data.
+			data, err := json.Marshal(value)
 			if err != nil {
 				msg := "failed to unmarshal history data: %v"
 				logrus.Errorf(msg, err)
 				return status.Errorf(codes.Internal, msg, err)
 			}
 
-			if err := b.Put(key, data); err != nil {
+			// Store the aggregated data point in the database.
+			if err := b.Put([]byte(key[:]), data); err != nil {
 				msg := "failed to store data in the bucket: %v"
 				logrus.Errorf(msg, err)
 				return status.Errorf(codes.Internal, msg, err)
@@ -79,10 +126,10 @@ func (s *externalCoordinatorServer) RegisterMissionControl(ctx context.Context,
 
 		return nil
 	})
-
 	if err != nil {
-		logrus.Errorf("batch operation failed: %v", err)
-		return nil, err
+		msg := "batch operation failed: %v"
+		logrus.Errorf(msg, err)
+		return nil, status.Errorf(codes.Internal, msg, err)
 	}
 
 	// Construct the registration success message indicating the number of
@@ -148,15 +195,18 @@ func (s *externalCoordinatorServer) QueryAggregatedMissionControl(
 		return err
 	})
 	if err != nil {
-		logrus.Errorf("query failed: %v", err)
-		return nil, err
+		msg := "query failed: %v"
+		logrus.Errorf(msg, err)
+		return nil, status.Errorf(codes.Internal, msg, err)
 	}
 
 	return &ecrpc.QueryAggregatedMissionControlResponse{Pairs: pairs}, nil
 }
 
-// RunCleanupRoutine runs a routine to cleanup stale data from the database.
-func (s *externalCoordinatorServer) RunCleanupRoutine(ticker *time.Ticker) {
+// RunCleanupRoutine runs a routine to cleanup stale data from the database
+// periodically depending on the configured cleanup interval.
+func (s *externalCoordinatorServer) RunCleanupRoutine(ctx context.Context,
+	ticker *time.Ticker) {
 	staleDataCleanupIntervalFormatted := formatDuration(
 		s.config.Server.StaleDataCleanupInterval,
 	)
@@ -169,14 +219,22 @@ func (s *externalCoordinatorServer) RunCleanupRoutine(ticker *time.Ticker) {
 
 	// Start a goroutine to handle cleanup routine.
 	go func() {
-		for range ticker.C {
-			// Run the cleanup routine when the ticker ticks.
-			s.cleanupStaleData()
+		for {
+			select {
+			case <-ctx.Done():
+				// Exit goroutine if the context is canceled.
+				return
+			case <-ticker.C:
+				// Run the cleanup routine when the ticker
+				// ticks.
+				s.cleanupStaleData()
+			}
 		}
 	}()
 }
 
 // cleanupStaleData cleans up stale mission control data from the database.
+// It iterates through the database and removes stale data entries.
 func (s *externalCoordinatorServer) cleanupStaleData() {
 	logrus.Infof("Running cleanup routine to remove stale mission " +
 		"control data from the database...")
@@ -292,6 +350,30 @@ func (s *externalCoordinatorServer) validateRegisterMissionControlRequest(req *e
 			)
 		}
 
+		// Validate fail and success amounts are non-negative.
+		if pair.History.FailAmtSat < 0 ||
+			pair.History.SuccessAmtSat < 0 {
+			return status.Errorf(
+				codes.InvalidArgument, "Fail and success "+
+					"amounts must be non-negative",
+			)
+		}
+
+		// Validate the conversion from AmtSat to millisatoshi.
+		if pair.History.FailAmtMsat != pair.History.FailAmtSat*1000 {
+			return status.Errorf(codes.InvalidArgument, "Fail "+
+				"amount in millisatoshi does not match the "+
+				"conversion from satoshi")
+		}
+		if pair.History.SuccessAmtMsat !=
+			pair.History.SuccessAmtSat*1000 {
+			return status.Errorf(codes.InvalidArgument, "Success "+
+				"amount in millisatoshi does not match the "+
+				"conversion from satoshi")
+		}
+
+		// Validate History data is not stale according to configured
+		// threshold duration.
 		isStale := isHistoryStale(
 			pair.History, s.config.Server.HistoryThresholdDuration,
 		)
@@ -358,4 +440,23 @@ func isHistoryStale(history *ecrpc.PairData, threshold time.Duration) bool {
 	// Check if the current history data pair is stale according
 	// to the configured threshold duration.
 	return time.Unix(recentTimestamp, 0).Before(time.Now().Add(-threshold))
+}
+
+// mergePairData merges the pair data from two pairs based on the most recent
+// timestamp.
+func mergePairData(existingData, newData *ecrpc.PairData) {
+	// Update success time and amounts if the new data's success time is
+	// greater.
+	if newData.SuccessTime > existingData.SuccessTime {
+		existingData.SuccessTime = newData.SuccessTime
+		existingData.SuccessAmtSat = newData.SuccessAmtSat
+		existingData.SuccessAmtMsat = newData.SuccessAmtMsat
+	}
+
+	// Update fail time and amounts if the new data's fail time is greater.
+	if newData.FailTime > existingData.FailTime {
+		existingData.FailTime = newData.FailTime
+		existingData.FailAmtSat = newData.FailAmtSat
+		existingData.FailAmtMsat = newData.FailAmtMsat
+	}
 }
