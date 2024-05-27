@@ -73,6 +73,68 @@ func TestCheckFilesExist(t *testing.T) {
 	})
 }
 
+// TestMostRecentUnixTimestamp tests the mostRecentUnixTimestamp function.
+func TestMostRecentUnixTimestamp(t *testing.T) {
+	// Case 1: Two timestamps provided.
+	t.Run("Two timestamps provided", func(t *testing.T) {
+		result := mostRecentUnixTimestamp(
+			1622132035, 1622132045,
+		)
+		expected := int64(1622132045)
+		if result != expected {
+			t.Errorf("mostRecentUnixTimestamp returned %d, "+
+				"expected %d", result, expected)
+		}
+	})
+
+	// Case 2: Three timestamps provided.
+	t.Run("Three timestamps provided", func(t *testing.T) {
+		result := mostRecentUnixTimestamp(
+			1622132035, 1622132045, 1622132055,
+		)
+		expected := int64(1622132055)
+		if result != expected {
+			t.Errorf("mostRecentUnixTimestamp returned %d, "+
+				"expected %d", result, expected)
+		}
+	})
+
+	// Case 3: Four timestamps provided with one negative value.
+	t.Run("Four timestamps with negative value", func(t *testing.T) {
+		result := mostRecentUnixTimestamp(
+			-1622132035, 1622132045, 1622132055, 1622132065,
+		)
+		expected := int64(1622132065)
+		if result != expected {
+			t.Errorf("mostRecentUnixTimestamp returned %d, "+
+				"expected %d", result, expected)
+		}
+	})
+
+	// Case 4: Five timestamps provided with one zero value.
+	t.Run("Five timestamps with zero value", func(t *testing.T) {
+		result := mostRecentUnixTimestamp(
+			0, 1622132035, 1622132045, 1622132055, 1622132065,
+		)
+		expected := int64(1622132065)
+		if result != expected {
+			t.Errorf("mostRecentUnixTimestamp returned %d, "+
+				"expected %d", result, expected)
+		}
+	})
+
+	// Case 5: No timestamps provided.
+	t.Run("No timestamps provided", func(t *testing.T) {
+		result := mostRecentUnixTimestamp()
+		// By default, return 0 if no timestamps provided.
+		expected := int64(0)
+		if result != expected {
+			t.Errorf("mostRecentUnixTimestamp returned %d, "+
+				"expected %d", result, expected)
+		}
+	})
+}
+
 // TestFormatDuration tests the formatDuration function.
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
