@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	logrus "github.com/sirupsen/logrus"
 )
@@ -103,6 +104,23 @@ func main() {
 	}
 	logrus.Info("TLS configurations loaded")
 
+	// Create the external coordinator server.
+	server := NewExternalCoordinatorServer(config, db)
+
+	// Create a ticker that ticks every interval specified in the server
+	// configuration.
+	staleDataCleanupTicker := time.NewTicker(
+		server.config.Server.StaleDataCleanupInterval,
+	)
+	defer staleDataCleanupTicker.Stop()
+
+	// Create a cancellable context for the cleanup routine.
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	defer cleanupCancel()
+
+	// Run the cleanup routine.
+	server.RunCleanupRoutine(cleanupCtx, staleDataCleanupTicker)
+
 	// Initialize and start the pprof server.
 	pprofServer := initializePProfServer(config, tlsCreds)
 	go func() {
@@ -112,17 +130,17 @@ func main() {
 	}()
 
 	// Initialize and start the gRPC server.
-	server, lis, err := initializeGRPCServer(config, tlsCreds, db)
+	grpcServer, lis, err := initializeGRPCServer(config, tlsCreds, server)
 	if err != nil {
 		logrus.Fatalf("Failed to initialize gRPC server: %v", err)
 	}
 	go func() {
-		if err := startGRPCServer(config, server, lis); err != nil {
+		if err := startGRPCServer(config, grpcServer, lis); err != nil {
 			logrus.Fatalf("Failed to start gRPC server: %v", err)
 		}
 	}()
 
-	// Persistent context for the gRPC REST gateway.
+	// Create a cancellable context for the gRPC REST gateway.
 	restCtx, restCancel := context.WithCancel(context.Background())
 	defer restCancel()
 
@@ -145,5 +163,5 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	// Handle graceful shutdown for the gRPC, HTTP, and pprof servers.
-	gracefulShutdown(sigChan, server, httpServer, pprofServer)
+	gracefulShutdown(sigChan, grpcServer, httpServer, pprofServer)
 }

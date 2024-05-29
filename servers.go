@@ -14,7 +14,6 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	logrus "github.com/sirupsen/logrus"
 	ecrpc "github.com/ziggie1984/Distributed-Mission-Control-for-LND/ecrpc"
-	bbolt "go.etcd.io/bbolt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -22,22 +21,20 @@ import (
 // initializeGRPCServer sets up the gRPC server but does not start it.
 func initializeGRPCServer(config *Config,
 	tlsConfig *tls.Config,
-	db *bbolt.DB) (*grpc.Server, net.Listener, error) {
+	server *externalCoordinatorServer) (*grpc.Server, net.Listener, error) {
 	lis, err := net.Listen(
 		"tcp",
 		config.Server.GRPCServerHost+config.Server.GRPCServerPort,
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to listen: %v", err)
+		return nil, nil, fmt.Errorf("failed to listen: %v", err)
 	}
 
 	// Create the gRPC server with TLS credentials.
-	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
-	ecrpc.RegisterExternalCoordinatorServer(
-		server, NewExternalCoordinatorServer(db),
-	)
+	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+	ecrpc.RegisterExternalCoordinatorServer(grpcServer, server)
 
-	return server, lis, nil
+	return grpcServer, lis, nil
 }
 
 // startGRPCServer handles the actual running of the gRPC server.
@@ -79,7 +76,7 @@ func initializeHTTPServer(ctx context.Context,
 	// during the TLS handshake, thereby securing the communication channel.
 	certPool := x509.NewCertPool()
 	if !certPool.AppendCertsFromPEM(certBytes) {
-		return nil, fmt.Errorf("Failed to append certificate")
+		return nil, fmt.Errorf("failed to append certificate")
 	}
 
 	// Define gRPC dial options with transport credentials using the

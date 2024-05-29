@@ -78,6 +78,18 @@ const (
 	// server will listen on.
 	DefaultPProfServerPort = ":6060"
 
+	// DefaultHistoryThresholdDuration specifies the default duration
+	// threshold for history data pair, set to 7 days. If historical data
+	// pair exceeds this threshold, It is considered too old and will be
+	// removed from the database. This threshold is also used to validate
+	// and sanitize against the mission control data being registered.
+	DefaultHistoryThresholdDuration = 7 * 24 * time.Hour
+
+	// DefaultStaleDataCleanupInterval specifies the default interval for
+	// cleaning up stale mission control data from the database, set to 24
+	// hours i.e. the cleanup will happen every day.
+	DefaultStaleDataCleanupInterval = 24 * time.Hour
+
 	// DefaultLogLevel specifies the default logging level used across the
 	// application.
 	DefaultLogLevel = "info"
@@ -150,10 +162,12 @@ type Config struct {
 
 // ServerConfig holds the server configuration values.
 type ServerConfig struct {
-	GRPCServerHost string `mapstructure:"grpc_server_host" description:"The host address for the gRPC server. Specify the IP address or hostname that the gRPC server will bind to. Default is '0.0.0.0', which represents all available network interfaces."`
-	GRPCServerPort string `mapstructure:"grpc_server_port" description:"The port number for the gRPC server. This is the port on which the gRPC server will listen for incoming connections."`
-	RESTServerHost string `mapstructure:"rest_server_host" description:"The host address for the RESTful server interface provided via gRPC Gateway. It determines the network address the HTTP server binds to. Default is '0.0.0.0, which represents all available network interfaces."`
-	RESTServerPort string `mapstructure:"rest_server_port" description:"The port number for the RESTful HTTP server. This port will be used for handling HTTP requests that are translated into gRPC calls."`
+	GRPCServerHost           string        `mapstructure:"grpc_server_host" description:"The host address for the gRPC server. Specify the IP address or hostname that the gRPC server will bind to. Default is '0.0.0.0', which represents all available network interfaces."`
+	GRPCServerPort           string        `mapstructure:"grpc_server_port" description:"The port number for the gRPC server. This is the port on which the gRPC server will listen for incoming connections."`
+	RESTServerHost           string        `mapstructure:"rest_server_host" description:"The host address for the RESTful server interface provided via gRPC Gateway. It determines the network address the HTTP server binds to. Default is '0.0.0.0, which represents all available network interfaces."`
+	RESTServerPort           string        `mapstructure:"rest_server_port" description:"The port number for the RESTful HTTP server. This port will be used for handling HTTP requests that are translated into gRPC calls."`
+	HistoryThresholdDuration time.Duration `mapstructure:"history_threshold_duration" description:"The duration threshold for history data pair, by default set to 7 days. If historical data pair exceed this threshold, It is considered too old and will be removed from the database. This threshold is also used to validate and sanitize against the mission control data being registered."`
+	StaleDataCleanupInterval time.Duration `mapstructure:"stale_data_cleanup_interval" description:"The interval for cleaning up stale mission control data from the database, by default set to 24 hours i.e. the cleanup will happen every day."`
 }
 
 // PProfConfig holds the pprof configuration values.
@@ -192,16 +206,18 @@ type LogConfig struct {
 func DefaultConfig() (Config, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return Config{}, fmt.Errorf("Failed to get user home "+
+		return Config{}, fmt.Errorf("failed to get user home "+
 			"directory: %v", err)
 	}
 	appPath := AppPath(runtime.GOOS, homeDir)
 	return Config{
 		Server: ServerConfig{
-			GRPCServerHost: DefaultGrpcServerHost,
-			GRPCServerPort: DefaultGrpcServerPort,
-			RESTServerHost: DefaultRestServerHost,
-			RESTServerPort: DefaultRestServerPort,
+			GRPCServerHost:           DefaultGrpcServerHost,
+			GRPCServerPort:           DefaultGrpcServerPort,
+			RESTServerHost:           DefaultRestServerHost,
+			RESTServerPort:           DefaultRestServerPort,
+			HistoryThresholdDuration: DefaultHistoryThresholdDuration,
+			StaleDataCleanupInterval: DefaultStaleDataCleanupInterval,
 		},
 		PProf: PProfConfig{
 			PProfServerHost: DefaultPProfServerHost,

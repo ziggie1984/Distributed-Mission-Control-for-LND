@@ -71,8 +71,13 @@ func TestInitializeGRPCServer(t *testing.T) {
 	}
 	defer cleanupDB(db)
 
+	// Create the external coordinator server.
+	server := NewExternalCoordinatorServer(config, db)
+
 	// Initialize the gRPC server with the given configuration and database.
-	server, lis, err := initializeGRPCServer(config, &tls.Config{}, db)
+	grpcServer, lis, err := initializeGRPCServer(
+		config, &tls.Config{}, server,
+	)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -82,7 +87,7 @@ func TestInitializeGRPCServer(t *testing.T) {
 
 	// Stop the server and close the listener.
 	lis.Close()
-	server.Stop()
+	grpcServer.Stop()
 }
 
 // TestInitializeHTTPServer tests the initialization of the HTTP server.
@@ -189,14 +194,16 @@ func TestStartGRPCServer(t *testing.T) {
 
 	// Define the configuration for the gRPC server and database.
 	config := &Config{
+		Server: ServerConfig{
+			GRPCServerHost:           "localhost",
+			GRPCServerPort:           fmt.Sprintf(":%d", port),
+			HistoryThresholdDuration: 10 * time.Minute,
+			StaleDataCleanupInterval: time.Second,
+		},
 		TLS: TLSConfig{
 			SelfSignedTLSDirPath:  tempDir,
 			SelfSignedTLSCertFile: "tls.crt",
 			SelfSignedTLSKeyFile:  "tls.key",
-		},
-		Server: ServerConfig{
-			GRPCServerHost: "localhost",
-			GRPCServerPort: fmt.Sprintf(":%d", port),
 		},
 		Database: DatabaseConfig{
 			DatabaseDirPath: tempDir,
@@ -220,8 +227,11 @@ func TestStartGRPCServer(t *testing.T) {
 	}
 	defer cleanupDB(db)
 
+	// Create the external coordinator server.
+	server := NewExternalCoordinatorServer(config, db)
+
 	// Initialize the gRPC server with the given configuration and database.
-	server, lis, err := initializeGRPCServer(config, tlsConfig, db)
+	grpcServer, lis, err := initializeGRPCServer(config, tlsConfig, server)
 	if err != nil {
 		t.Fatalf("Failed to initialize gRPC server: %v", err)
 	}
@@ -231,12 +241,12 @@ func TestStartGRPCServer(t *testing.T) {
 
 	// Start the gRPC server in a separate goroutine.
 	go func() {
-		if err := startGRPCServer(config, server, lis); err != nil {
+		if err := startGRPCServer(config, grpcServer, lis); err != nil {
 			errChan <- fmt.Errorf("Failed to serve gRPC: %v", err)
 		}
 	}()
 	// Ensure the gRPC server is stopped at the end of the test.
-	defer server.Stop()
+	defer grpcServer.Stop()
 
 	tlsCertPath := filepath.Join(
 		config.TLS.SelfSignedTLSDirPath,
@@ -275,6 +285,9 @@ func TestStartGRPCServer(t *testing.T) {
 	// Create a client for the ExternalCoordinator service.
 	client := ecrpc.NewExternalCoordinatorClient(conn)
 
+	failTime := time.Now().Unix()
+	successTime := time.Now().Unix()
+
 	// Register some dummy data.
 	nodeFrom, nodeTo := generateTestKeys(t)
 	registerReq := &ecrpc.RegisterMissionControlRequest{
@@ -283,10 +296,10 @@ func TestStartGRPCServer(t *testing.T) {
 				NodeFrom: nodeFrom,
 				NodeTo:   nodeTo,
 				History: &ecrpc.PairData{
-					FailTime:       0,
+					FailTime:       failTime,
 					FailAmtSat:     0,
 					FailAmtMsat:    0,
-					SuccessTime:    0,
+					SuccessTime:    successTime,
 					SuccessAmtSat:  0,
 					SuccessAmtMsat: 0,
 				},
@@ -343,16 +356,18 @@ func TestStartHTTPServer(t *testing.T) {
 
 	// Define the configuration for the servers and database.
 	config := &Config{
+		Server: ServerConfig{
+			GRPCServerHost:           "localhost",
+			GRPCServerPort:           fmt.Sprintf(":%d", grpcPort),
+			RESTServerHost:           "localhost",
+			RESTServerPort:           fmt.Sprintf(":%d", httpPort),
+			HistoryThresholdDuration: 10 * time.Minute,
+			StaleDataCleanupInterval: time.Second,
+		},
 		TLS: TLSConfig{
 			SelfSignedTLSDirPath:  tempDir,
 			SelfSignedTLSCertFile: "tls.crt",
 			SelfSignedTLSKeyFile:  "tls.key",
-		},
-		Server: ServerConfig{
-			GRPCServerHost: "localhost",
-			GRPCServerPort: fmt.Sprintf(":%d", grpcPort),
-			RESTServerHost: "localhost",
-			RESTServerPort: fmt.Sprintf(":%d", httpPort),
 		},
 		Database: DatabaseConfig{
 			DatabaseDirPath: tempDir,
@@ -378,8 +393,13 @@ func TestStartHTTPServer(t *testing.T) {
 	}
 	defer cleanupDB(db)
 
+	// Create the external coordinator server.
+	server := NewExternalCoordinatorServer(config, db)
+
 	// Initialize the gRPC server with the given configuration and database.
-	grpcServer, grpcLis, err := initializeGRPCServer(config, tlsConfig, db)
+	grpcServer, grpcLis, err := initializeGRPCServer(
+		config, tlsConfig, server,
+	)
 	if err != nil {
 		t.Fatalf("Failed to initialize gRPC server: %v", err)
 	}
@@ -461,6 +481,9 @@ func TestStartHTTPServer(t *testing.T) {
 	}
 	defer conn.Close()
 
+	failTime := time.Now().Unix()
+	successTime := time.Now().Unix()
+
 	clientGRPC := ecrpc.NewExternalCoordinatorClient(conn)
 	nodeFrom, nodeTo := generateTestKeys(t)
 	registerReq := &ecrpc.RegisterMissionControlRequest{
@@ -469,10 +492,10 @@ func TestStartHTTPServer(t *testing.T) {
 				NodeFrom: nodeFrom,
 				NodeTo:   nodeTo,
 				History: &ecrpc.PairData{
-					FailTime:       0,
+					FailTime:       failTime,
 					FailAmtSat:     0,
 					FailAmtMsat:    0,
-					SuccessTime:    0,
+					SuccessTime:    successTime,
 					SuccessAmtSat:  0,
 					SuccessAmtMsat: 0,
 				},
