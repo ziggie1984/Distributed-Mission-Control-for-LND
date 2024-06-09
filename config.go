@@ -113,6 +113,16 @@ const (
 	// within the bbolt database for mission control data.
 	DatabaseBucketName = "MissionControl"
 
+	// MinFailureRelaxInterval is the minimum time that must
+	// have passed since the previously recorded failure before the failure
+	// amount may be raised in the context of mission control data.
+	//
+	// NOTE: This interval value is the same as the one used in LND.
+	// Be cautious when changing it, as it could create inconsistencies
+	// when a client queries the aggregated mission control data from the
+	// EC.
+	MinFailureRelaxInterval = time.Minute
+
 	// File and directory permission constants.
 
 	// AppDirPermissions defines the permissions for main application
