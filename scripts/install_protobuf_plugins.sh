@@ -1,8 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 
-# Install Protobuf Plugins
+# Install Protobuf Plugins.
 
-# Define the versions for the Protobuf plugins
+# Define the versions for the Protobuf plugins.
 GRPC_GATEWAY_VERSION="v2.20.0"
 OPENAPIV2_VERSION="v2.20.0"
 PROTOC_GEN_GO_VERSION="v1.34.1"
