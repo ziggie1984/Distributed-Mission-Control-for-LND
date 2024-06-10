@@ -198,9 +198,11 @@ func (s *externalCoordinatorServer) QueryAggregatedMissionControl(
 				return status.Errorf(codes.Internal, msg, err)
 			}
 
+			nodeFrom := k[:PubKeyCompressedSize]
+			nodeTo := k[PubKeyCompressedSize:]
 			pair := &ecrpc.PairHistory{
-				NodeFrom: k[:33],
-				NodeTo:   k[33:],
+				NodeFrom: nodeFrom,
+				NodeTo:   nodeTo,
 				History:  history,
 			}
 			pairs = append(pairs, pair)
@@ -332,17 +334,19 @@ func (s *externalCoordinatorServer) validateRegisterMissionControlRequest(req *e
 	for _, pair := range req.Pairs {
 		// Validate that NodeFrom is exactly 33 bytes i.e compressed sec
 		// pub key.
-		if len(pair.NodeFrom) != 33 {
+		if len(pair.NodeFrom) != PubKeyCompressedSize {
 			return status.Errorf(codes.InvalidArgument, "NodeFrom "+
-				"must be exactly 33 bytes",
+				"must be exactly %d bytes",
+				PubKeyCompressedSize,
 			)
 		}
 
 		// Validate that NodeTo is exactly 33 bytes i.e compressed sec
 		// pub key.
-		if len(pair.NodeTo) != 33 {
+		if len(pair.NodeTo) != PubKeyCompressedSize {
 			return status.Errorf(codes.InvalidArgument, "NodeTo "+
-				"must be exactly 33 bytes",
+				"must be exactly %d bytes",
+				PubKeyCompressedSize,
 			)
 		}
 
