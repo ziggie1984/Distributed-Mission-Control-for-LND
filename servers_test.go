@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -533,10 +534,22 @@ func TestStartHTTPServer(t *testing.T) {
 		t.Fatalf("Failed to read HTTP response body: %v", err)
 	}
 
-	// Unmarshal the response into a QueryAggregatedMissionControlResponse
-	// object.
+	// Define a wrapper struct to capture the "result" field which added
+	// automatically by grpc-gateway in case of streaming response.
+	type WrappedResponse struct {
+		Result json.RawMessage `json:"result"`
+	}
+
+	// Unmarshal the wrapped response first.
+	var wrapped WrappedResponse
+	if err := json.Unmarshal(body, &wrapped); err != nil {
+		t.Fatalf("Failed to unmarshal wrapped HTTP response: %v", err)
+	}
+
+	// Unmarshal the actual response from the "result" field into
+	// a QueryAggregatedMissionControlResponse object.
 	var response ecrpc.QueryAggregatedMissionControlResponse
-	if err := protojson.Unmarshal(body, &response); err != nil {
+	if err := protojson.Unmarshal(wrapped.Result, &response); err != nil {
 		t.Fatalf("Failed to unmarshal HTTP response: %v", err)
 	}
 
