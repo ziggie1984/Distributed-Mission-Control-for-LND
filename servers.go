@@ -136,7 +136,7 @@ func initializeHTTPServer(ctx context.Context,
 // startHTTPServer starts the provided HTTP server for the gRPC REST gateway.
 func startHTTPServer(config *Config, httpServer *http.Server) error {
 	logrus.Infof("Starting HTTP/1.1 REST server on https://%s%s",
-		config.Server.RESTServerHost, DefaultRestServerPort)
+		config.Server.RESTServerHost, config.Server.RESTServerPort)
 
 	certFile := filepath.Join(
 		config.TLS.SelfSignedTLSDirPath,
