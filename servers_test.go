@@ -113,7 +113,7 @@ func TestInitializeHTTPServer(t *testing.T) {
 	config := &Config{
 		TLS: TLSConfig{
 			SelfSignedTLSDirPath:  tempDir,
-			SelfSignedTLSCertFile: "tls.crt",
+			SelfSignedTLSCertFile: "tls.cert",
 			SelfSignedTLSKeyFile:  "tls.key",
 		},
 		Server: ServerConfig{
@@ -203,7 +203,7 @@ func TestStartGRPCServer(t *testing.T) {
 		},
 		TLS: TLSConfig{
 			SelfSignedTLSDirPath:  tempDir,
-			SelfSignedTLSCertFile: "tls.crt",
+			SelfSignedTLSCertFile: "tls.cert",
 			SelfSignedTLSKeyFile:  "tls.key",
 		},
 		Database: DatabaseConfig{
@@ -367,7 +367,7 @@ func TestStartHTTPServer(t *testing.T) {
 		},
 		TLS: TLSConfig{
 			SelfSignedTLSDirPath:  tempDir,
-			SelfSignedTLSCertFile: "tls.crt",
+			SelfSignedTLSCertFile: "tls.cert",
 			SelfSignedTLSKeyFile:  "tls.key",
 		},
 		Database: DatabaseConfig{
@@ -591,7 +591,7 @@ func TestStartPProfServer(t *testing.T) {
 	config := &Config{
 		TLS: TLSConfig{
 			SelfSignedTLSDirPath:  tempDir,
-			SelfSignedTLSCertFile: "tls.crt",
+			SelfSignedTLSCertFile: "tls.cert",
 			SelfSignedTLSKeyFile:  "tls.key",
 		},
 		PProf: PProfConfig{

@@ -33,7 +33,7 @@ const (
 
 	// DefaultTLSCertFilename is the default filename for the TLS
 	// self-signed certificate used by the server.
-	DefaultTLSCertFilename = "tls.crt"
+	DefaultTLSCertFilename = "tls.cert"
 
 	// DefaultTLSKeyFilename is the default filename for the TLS key
 	// associated with the server's certificate.
