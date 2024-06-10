@@ -9,9 +9,27 @@ import (
 	"github.com/stretchr/testify/require"
 	ecrpc "github.com/ziggie1984/Distributed-Mission-Control-for-LND/ecrpc"
 	"go.etcd.io/bbolt"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// mockQueryAggregatedMissionControlServer is a mock implementation of the
+// ecrpc.ExternalCoordinator_QueryAggregatedMissionControlServer interface
+// to capture streaming responses in the tests.
+type mockQueryAggregatedMissionControlServer struct {
+	grpc.ServerStream
+	Responses []*ecrpc.QueryAggregatedMissionControlResponse
+}
+
+func (m *mockQueryAggregatedMissionControlServer) Send(resp *ecrpc.QueryAggregatedMissionControlResponse) error {
+	m.Responses = append(m.Responses, resp)
+	return nil
+}
+
+func (m *mockQueryAggregatedMissionControlServer) Context() context.Context {
+	return context.Background()
+}
 
 // generateTestKeys generates a pair of test keys for nodeFrom and nodeTo
 // identity sec compressed pub keys.
@@ -327,16 +345,20 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			q_resp, q_err := server.QueryAggregatedMissionControl(
-				context.Background(),
+			// Creating a mock stream to capture the responses.
+			mockStream := &mockQueryAggregatedMissionControlServer{
+				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
+			}
+			err = server.QueryAggregatedMissionControl(
 				&ecrpc.QueryAggregatedMissionControlRequest{},
+				mockStream,
 			)
-			require.NoError(t, q_err)
-			require.NotNil(t, q_resp)
+			require.NoError(t, err)
 
-			// Check that no data was removed cause there is no
+			// Check that no data was removed since there is no
 			// stale data.
-			require.Len(t, q_resp.Pairs, 1)
+			require.Len(t, mockStream.Responses, 1)
+			require.Len(t, mockStream.Responses[0].Pairs, 1)
 		})
 
 		// Case 12: Stale history.
@@ -367,15 +389,19 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			)
 			require.Error(t, err)
 
-			q_resp, q_err := server.QueryAggregatedMissionControl(
-				context.Background(),
+			// Creating a mock stream to capture the responses.
+			mockStream := &mockQueryAggregatedMissionControlServer{
+				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
+			}
+			err = server.QueryAggregatedMissionControl(
 				&ecrpc.QueryAggregatedMissionControlRequest{},
+				mockStream,
 			)
-			require.NoError(t, q_err)
+			require.NoError(t, err)
 
-			// Check that there are no data in the db cause all
-			// data was stale.
-			require.Empty(t, q_resp.Pairs)
+			// Check that there are no data in the db since all
+			// the data was stale.
+			require.Empty(t, mockStream.Responses)
 		})
 
 		// Case 13: Register new pair with old success and fail times
@@ -438,23 +464,27 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			q_resp, q_err := server.QueryAggregatedMissionControl(
-				context.Background(),
+			// Creating a mock stream to capture the responses.
+			mockStream := &mockQueryAggregatedMissionControlServer{
+				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
+			}
+			err = server.QueryAggregatedMissionControl(
 				&ecrpc.QueryAggregatedMissionControlRequest{},
+				mockStream,
 			)
-			require.NoError(t, q_err)
-			require.NotNil(t, q_resp)
-			require.Len(t, q_resp.Pairs, 1)
+			require.NoError(t, err)
+			require.Len(t, mockStream.Responses, 1)
+			require.Len(t, mockStream.Responses[0].Pairs, 1)
 
 			// Check the times stored are only the recent times.
-			require.Equal(
-				t, q_resp.Pairs[0].History.SuccessTime,
-				successTime,
-			)
-			require.Equal(
-				t, q_resp.Pairs[0].History.FailTime,
-				failTime,
-			)
+			gotSuccessTime :=
+				mockStream.Responses[0].Pairs[0].History.SuccessTime
+
+			gotFailTime :=
+				mockStream.Responses[0].Pairs[0].History.FailTime
+
+			require.Equal(t, gotSuccessTime, successTime)
+			require.Equal(t, gotFailTime, failTime)
 		})
 
 		// Case 14: Register new pair with more recent success and fail
@@ -517,24 +547,28 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			q_resp, q_err := server.QueryAggregatedMissionControl(
-				context.Background(),
+			// Creating a mock stream to capture the responses.
+			mockStream := &mockQueryAggregatedMissionControlServer{
+				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
+			}
+			err = server.QueryAggregatedMissionControl(
 				&ecrpc.QueryAggregatedMissionControlRequest{},
+				mockStream,
 			)
-			require.NoError(t, q_err)
-			require.NotNil(t, q_resp)
-			require.Len(t, q_resp.Pairs, 1)
+			require.NoError(t, err)
+			require.Len(t, mockStream.Responses, 1)
+			require.Len(t, mockStream.Responses[0].Pairs, 1)
 
 			// Check the times stored are only the recent times
 			// in the new pair registered.
-			require.Equal(
-				t, q_resp.Pairs[0].History.SuccessTime,
-				rSuccessTime,
-			)
-			require.Equal(
-				t, q_resp.Pairs[0].History.FailTime,
-				rFailTime,
-			)
+			gotSuccessTime :=
+				mockStream.Responses[0].Pairs[0].History.SuccessTime
+
+			gotFailTime :=
+				mockStream.Responses[0].Pairs[0].History.FailTime
+
+			require.Equal(t, gotSuccessTime, rSuccessTime)
+			require.Equal(t, gotFailTime, rFailTime)
 		})
 	})
 
@@ -568,15 +602,25 @@ func TestExternalCoordinatorServer(t *testing.T) {
 				})
 			require.NoError(t, err)
 
-			resp, err := server.QueryAggregatedMissionControl(
-				context.Background(),
+			// Creating a mock stream to capture the responses.
+			mockStream := &mockQueryAggregatedMissionControlServer{
+				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
+			}
+			err = server.QueryAggregatedMissionControl(
 				&ecrpc.QueryAggregatedMissionControlRequest{},
+				mockStream,
 			)
 			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Len(t, resp.Pairs, 1)
-			require.Equal(t, nodeFrom, resp.Pairs[0].NodeFrom)
-			require.Equal(t, nodeTo, resp.Pairs[0].NodeTo)
+			require.Len(t, mockStream.Responses, 1)
+			require.Len(t, mockStream.Responses[0].Pairs, 1)
+			require.Equal(
+				t, nodeFrom,
+				mockStream.Responses[0].Pairs[0].NodeFrom,
+			)
+			require.Equal(
+				t, nodeTo,
+				mockStream.Responses[0].Pairs[0].NodeTo,
+			)
 		})
 
 		// Case 2: Valid request with no data in the database.
@@ -584,13 +628,17 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			err = clearDatabase(db)
 			require.NoError(t, err)
 			server := NewExternalCoordinatorServer(config, db)
-			resp, err := server.QueryAggregatedMissionControl(
-				context.Background(),
+
+			// Creating a mock stream to capture the responses.
+			mockStream := &mockQueryAggregatedMissionControlServer{
+				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
+			}
+			err = server.QueryAggregatedMissionControl(
 				&ecrpc.QueryAggregatedMissionControlRequest{},
+				mockStream,
 			)
 			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Len(t, resp.Pairs, 0)
+			require.Len(t, mockStream.Responses, 0)
 		})
 	})
 
@@ -662,18 +710,23 @@ func TestExternalCoordinatorServer(t *testing.T) {
 		// Start the cleanup routine.
 		server.RunCleanupRoutine(cleanupCtx, ticker)
 
+		// Creating a mock stream to capture the responses.
+		mockStream := &mockQueryAggregatedMissionControlServer{
+			Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
+		}
+
 		// After waiting for the ticker to tick, query the database to
 		// check if stale data has been removed.
-		resp, err := server.QueryAggregatedMissionControl(
-			context.Background(),
+		err = server.QueryAggregatedMissionControl(
 			&ecrpc.QueryAggregatedMissionControlRequest{},
+			mockStream,
 		)
 		require.NoError(t, err)
-		require.NotNil(t, resp)
 
 		// Assert that there is one pair in the response, indicating
 		// that all stale data has been removed.
-		require.Len(t, resp.Pairs, 1)
+		require.Len(t, mockStream.Responses, 1)
+		require.Len(t, mockStream.Responses[0].Pairs, 1)
 	})
 
 	t.Run("cleanupStaleData", func(t *testing.T) {
@@ -734,14 +787,19 @@ func TestExternalCoordinatorServer(t *testing.T) {
 		// Call cleanupStaleData to remove stale data.
 		server.cleanupStaleData()
 
+		// Creating a mock stream to capture the responses.
+		mockStream := &mockQueryAggregatedMissionControlServer{
+			Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
+		}
+
 		// Verify that all stale data is removed.
-		resp, err := server.QueryAggregatedMissionControl(
-			context.Background(),
+		err = server.QueryAggregatedMissionControl(
 			&ecrpc.QueryAggregatedMissionControlRequest{},
+			mockStream,
 		)
 		require.NoError(t, err)
-		require.NotNil(t, resp)
-		require.Len(t, resp.Pairs, 1)
+		require.Len(t, mockStream.Responses, 1)
+		require.Len(t, mockStream.Responses[0].Pairs, 1)
 	})
 
 	t.Run("sanitizeRegisterMissionControlRequest", func(t *testing.T) {
