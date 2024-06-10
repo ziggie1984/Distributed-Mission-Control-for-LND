@@ -16,7 +16,7 @@ service ExternalCoordinator {
     }
 
     // QueryAggregatedMissionControl queries aggregated mission control data.
-    rpc QueryAggregatedMissionControl(QueryAggregatedMissionControlRequest) returns (QueryAggregatedMissionControlResponse) {
+    rpc QueryAggregatedMissionControl(QueryAggregatedMissionControlRequest) returns (stream QueryAggregatedMissionControlResponse) {
         option (google.api.http) = {
             get: "/v1/queryaggregatedmissioncontrol"
         };

@@ -173,12 +173,12 @@ func (s *externalCoordinatorServer) RegisterMissionControl(ctx context.Context,
 
 // QueryAggregatedMissionControl queries aggregated mission control data.
 func (s *externalCoordinatorServer) QueryAggregatedMissionControl(
-	ctx context.Context, req *ecrpc.QueryAggregatedMissionControlRequest) (*ecrpc.QueryAggregatedMissionControlResponse, error) {
+	req *ecrpc.QueryAggregatedMissionControlRequest,
+	stream ecrpc.ExternalCoordinator_QueryAggregatedMissionControlServer) error {
 	// Log the receipt of the query request.
 	logrus.Info("Received QueryAggregatedMissionControl request")
 
 	var pairs []*ecrpc.PairHistory
-
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(DatabaseBucketName))
 
@@ -207,21 +207,56 @@ func (s *externalCoordinatorServer) QueryAggregatedMissionControl(
 			}
 			pairs = append(pairs, pair)
 
+			// If the batch size is reached, send the batch.
+			batch := s.config.Server.QueryMissionControlBatchSize
+			if len(pairs) == batch {
+				response := &ecrpc.QueryAggregatedMissionControlResponse{
+					Pairs: pairs,
+				}
+				if err := stream.Send(response); err != nil {
+					return status.Errorf(codes.Internal, "failed to send batch: %v", err)
+				}
+
+				// Log the number of pairs retrieved.
+				logrus.Infof("Retrieved %d pairs from the "+
+					"database", len(pairs))
+
+				// Clear the pairs slice for the next batch
+				// while maintaining the same original capacity.
+				pairs = pairs[:0]
+			}
+
 			return nil
 		})
+		if err != nil {
+			msg := "error while iterating through bucket: %v"
+			logrus.Errorf(msg, err)
+			return status.Errorf(codes.Internal, msg, err)
+		}
 
-		// Log the number of pairs retrieved.
-		logrus.Infof("Retrieved %d pairs from the database", len(pairs))
+		// Send any remaining pairs as the final batch.
+		if len(pairs) > 0 {
+			response := &ecrpc.QueryAggregatedMissionControlResponse{
+				Pairs: pairs,
+			}
+			if err := stream.Send(response); err != nil {
+				return status.Errorf(codes.Internal, "failed "+
+					"to send final batch: %v", err)
+			}
+			// Log the number of pairs retrieved.
+			logrus.Infof("Retrieved %d pairs from the database",
+				len(pairs))
+		}
 
 		return err
 	})
 	if err != nil {
 		msg := "query failed: %v"
 		logrus.Errorf(msg, err)
-		return nil, status.Errorf(codes.Internal, msg, err)
+		return status.Errorf(codes.Internal, msg, err)
 	}
 
-	return &ecrpc.QueryAggregatedMissionControlResponse{Pairs: pairs}, nil
+	return nil
 }
 
 // RunCleanupRoutine runs a routine to cleanup stale data from the database
