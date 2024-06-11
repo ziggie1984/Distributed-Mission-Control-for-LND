@@ -16,7 +16,7 @@
     "application/json"
   ],
   "paths": {
-    "/v1/queryaggregatedmissioncontrol": {
+    "/v1/query_aggregated_mission_control": {
       "get": {
         "summary": "QueryAggregatedMissionControl queries aggregated mission control data.",
         "operationId": "ExternalCoordinator_QueryAggregatedMissionControl",
@@ -48,7 +48,7 @@
         ]
       }
     },
-    "/v1/registermissioncontrol": {
+    "/v1/register_mission_control": {
       "post": {
         "summary": "RegisterMissionControl registers mission control data.",
         "operationId": "ExternalCoordinator_RegisterMissionControl",

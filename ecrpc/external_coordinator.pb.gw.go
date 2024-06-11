@@ -88,7 +88,7 @@ func RegisterExternalCoordinatorHandlerServer(ctx context.Context, mux *runtime.
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/RegisterMissionControl", runtime.WithHTTPPathPattern("/v1/registermissioncontrol"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/RegisterMissionControl", runtime.WithHTTPPathPattern("/v1/register_mission_control"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -159,7 +159,7 @@ func RegisterExternalCoordinatorHandlerClient(ctx context.Context, mux *runtime.
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/RegisterMissionControl", runtime.WithHTTPPathPattern("/v1/registermissioncontrol"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/RegisterMissionControl", runtime.WithHTTPPathPattern("/v1/register_mission_control"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -181,7 +181,7 @@ func RegisterExternalCoordinatorHandlerClient(ctx context.Context, mux *runtime.
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/QueryAggregatedMissionControl", runtime.WithHTTPPathPattern("/v1/queryaggregatedmissioncontrol"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/QueryAggregatedMissionControl", runtime.WithHTTPPathPattern("/v1/query_aggregated_mission_control"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -201,9 +201,9 @@ func RegisterExternalCoordinatorHandlerClient(ctx context.Context, mux *runtime.
 }
 
 var (
-	pattern_ExternalCoordinator_RegisterMissionControl_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "registermissioncontrol"}, ""))
+	pattern_ExternalCoordinator_RegisterMissionControl_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "register_mission_control"}, ""))
 
-	pattern_ExternalCoordinator_QueryAggregatedMissionControl_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "queryaggregatedmissioncontrol"}, ""))
+	pattern_ExternalCoordinator_QueryAggregatedMissionControl_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "query_aggregated_mission_control"}, ""))
 )
 
 var (

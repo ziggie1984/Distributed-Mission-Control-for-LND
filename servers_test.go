@@ -515,7 +515,7 @@ func TestStartHTTPServer(t *testing.T) {
 	// data.
 	resp, err := client.Get(
 		fmt.Sprintf(
-			"https://localhost%s/v1/queryaggregatedmissioncontrol", config.Server.RESTServerPort,
+			"https://localhost%s/v1/query_aggregated_mission_control", config.Server.RESTServerPort,
 		),
 	)
 	if err != nil {
