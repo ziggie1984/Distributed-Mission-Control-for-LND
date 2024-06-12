@@ -17,7 +17,7 @@ import (
 const (
 	// DefaultAppName is the default app name for the external coordinator
 	// service.
-	DefaultAppName = "ExternalCoordinator"
+	DefaultAppName = "EC"
 
 	// DefaultConfigFilename is the default filename for the server
 	// configuration file.

@@ -233,7 +233,7 @@ if __name__ == "__main__":
     )
 
     # Define configuration variables for the External Coordinator.
-    EC_TLS_CERT = "ExternalCoordinator_DIR/tls.cert"
+    EC_TLS_CERT = "EC_DIR/tls.cert"
     EC_GRPC_HOST = "localhost:50050"
 
     # Create a secure channel and stub to communicate with the External

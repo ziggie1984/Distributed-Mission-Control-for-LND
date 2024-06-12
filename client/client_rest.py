@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
     # Define configuration variables for the External Coordinator.
     EC_REST_HOST = 'localhost:8081'
-    EC_TLS_CERT = "ExternalCoordinator_DIR/tls.cert"
+    EC_TLS_CERT = "EC_DIR/tls.cert"
 
     # Create a secure session to communicate with the External Coordinator.
     ec_session = get_secure_session(cert=EC_TLS_CERT)
