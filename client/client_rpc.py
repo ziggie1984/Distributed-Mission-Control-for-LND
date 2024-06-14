@@ -46,21 +46,24 @@ def query_aggregated_mission_control(stub) -> list:
         print(f"Failed to process streaming response: {e}")
     return pairs
 
-def register_mission_control(stub, pairs: list[routerrpc.PairHistory]) -> ecrpc.RegisterMissionControlResponse:
+def register_mission_control(stub, pairs: list[routerrpc.PairHistory], batch_register: int) -> ecrpc.RegisterMissionControlResponse:
     """
     Registers mission control data with the External Coordinator.
 
     Args:
         stub: The gRPC stub for the External Coordinator.
         pairs (list): A list of `routerrpc.PairHistory` objects to register.
+        batch_register (int):  The number of pairs to be sent in each batch.
 
     Returns:
-        ecrpc.RegisterMissionControlResponse: The response from the registration request.
+        bool: boolean flag to indicate if registration's successful.
     """
     converted_pairs = [convert_to_ecrpc_pair_history(pair) for pair in pairs]
-    request = ecrpc.RegisterMissionControlRequest(pairs=converted_pairs)
-    response = stub.RegisterMissionControl(request)
-    return response
+    for i in range(0, len(converted_pairs), batch_register):
+        batch_pairs = converted_pairs[i:i+batch_register]
+        request = ecrpc.RegisterMissionControlRequest(pairs=batch_pairs)
+        _ = stub.RegisterMissionControl(request)
+    return True
 
 def query_mission_control_data_from_lnd(stub) -> list[routerrpc.PairHistory]:
     """
@@ -145,19 +148,20 @@ def get_lnd_router_stub(lnd_macaroon_path: str, lnd_tls_cert: str, lnd_grpc_host
     stub = routerstub.RouterStub(channel)
     return stub
 
-def register_my_lnd_mission_control_data_with_ec(lnd_router_stub, ec_stub) -> list[routerrpc.PairHistory]:
+def register_my_lnd_mission_control_data_with_ec(lnd_router_stub, ec_stub, batch_register: int) -> list[routerrpc.PairHistory]:
     """
     Registers mission control data from the LND node with the External Coordinator.
 
     Args:
         lnd_router_stub: The gRPC stub for the LND router.
         ec_stub: The gRPC stub for the External Coordinator.
+        batch_register (int):  The number of pairs to be sent in each batch.
 
     Returns:
         list: A list of mission control pairs registered into the External Coordinator.
     """
     mc_pairs = query_mission_control_data_from_lnd(lnd_router_stub)
-    register_mission_control(ec_stub, mc_pairs)
+    register_mission_control(ec_stub, mc_pairs, batch_register)
     return mc_pairs
 
 def import_mission_control_data_from_ec_to_my_lnd(lnd_router_stub, ec_stub) -> list:
@@ -233,7 +237,7 @@ if __name__ == "__main__":
     )
 
     # Define configuration variables for the External Coordinator.
-    EC_TLS_CERT = "EC_DIR/tls.cert"
+    EC_TLS_CERT = f"EC_DIR/tls.cert"
     EC_GRPC_HOST = "localhost:50050"
 
     # Create a secure channel and stub to communicate with the External
@@ -243,10 +247,17 @@ if __name__ == "__main__":
     )
     ec_stub = ecrpcstub.ExternalCoordinatorStub(ec_channel)
 
+    # BATCH_REGISTER is the default number of pairs to be sent in each batch
+    # when registering the aggregated mission control data. The size of a given
+    # mission control pair is ~114 bytes as defined in the proto file. With the
+    # default value of 4600 pairs, the batch size would be approximately 512 KB
+    # (1/2 MB) in case of gRPC (would be higher in case of REST).
+    BATCH_REGISTER = 4600
+
     # Register mission control data from the LND node with the External
     # Coordinator (EC).
     mc_pairs_registered = register_my_lnd_mission_control_data_with_ec(
-        lnd_router_stub, ec_stub,
+        lnd_router_stub, ec_stub, BATCH_REGISTER,
     )
     print((
         f"{len(mc_pairs_registered)} of your LND Mission Control pairs "
