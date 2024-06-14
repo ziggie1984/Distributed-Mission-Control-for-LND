@@ -45,7 +45,7 @@ def query_aggregated_mission_control(session: requests.Session, ec_rest_host: st
             pairs.extend(data["result"]["pairs"])
     return pairs
 
-def register_mission_control(session: requests.Session, ec_rest_host: str, pairs: list) -> dict:
+def register_mission_control(session: requests.Session, ec_rest_host: str, pairs: list, batch_register: int) -> dict:
     """
     Registers mission control data with the External Coordinator.
 
@@ -53,15 +53,18 @@ def register_mission_control(session: requests.Session, ec_rest_host: str, pairs
         session (requests.Session): The secure requests session.
         ec_rest_host (str): The REST host address of the External Coordinator.
         pairs (list): A list of pairs to register.
+        batch_register (int):  The number of pairs to be sent in each batch.
 
     Returns:
-        dict: The response from the registration request.
+        bool: boolean flag to indicate if registration's successful.
     """
     url = f"https://{ec_rest_host}/v1/register_mission_control"
-    data = {'pairs': pairs}
-    response = session.post(url, json=data)
-    response.raise_for_status()
-    return response.json()
+
+    for i in range(0, len(pairs), batch_register):
+        data = {'pairs': pairs[i:i+batch_register]}
+        response = session.post(url, json=data)
+        response.raise_for_status()
+    return True
 
 def query_mission_control_data_from_lnd(macaroon_path: str, tls_cert: str, lnd_rest_host: str) -> list:
     """
@@ -103,7 +106,7 @@ def import_mission_control_data_into_lnd(macaroon_path: str, tls_cert: str, lnd_
     response.raise_for_status()
     return response.status_code == 200
 
-def register_my_lnd_mission_control_data_with_ec(lnd_macaroon_path: str, lnd_tls_cert: str, lnd_rest_host: str, ec_session: requests.Session, ec_rest_host: str) -> list:
+def register_my_lnd_mission_control_data_with_ec(lnd_macaroon_path: str, lnd_tls_cert: str, lnd_rest_host: str, ec_session: requests.Session, ec_rest_host: str, batch_register: int) -> list:
     """
     Registers mission control data from the LND node with the External Coordinator.
 
@@ -113,6 +116,7 @@ def register_my_lnd_mission_control_data_with_ec(lnd_macaroon_path: str, lnd_tls
         lnd_rest_host (str): The REST host address of the LND node.
         ec_session (requests.Session): The secure requests session for the External Coordinator.
         ec_rest_host (str): The REST host address of the External Coordinator.
+        batch_register (int):  The number of pairs to be sent in each batch.
 
     Returns:
         list: A list of mission control pairs registered into the External Coordinator.
@@ -120,7 +124,7 @@ def register_my_lnd_mission_control_data_with_ec(lnd_macaroon_path: str, lnd_tls
     mc_pairs = query_mission_control_data_from_lnd(
         lnd_macaroon_path, lnd_tls_cert, lnd_rest_host
     )
-    register_mission_control(ec_session, ec_rest_host, mc_pairs)
+    register_mission_control(ec_session, ec_rest_host, mc_pairs, batch_register)
     return mc_pairs
 
 def import_mission_control_data_from_ec_to_my_lnd(ec_session: requests.Session,
@@ -158,12 +162,18 @@ if __name__ == "__main__":
     # Create a secure session to communicate with the External Coordinator.
     ec_session = get_secure_session(cert=EC_TLS_CERT)
 
+    # BATCH_REGISTER is the default number of pairs to be sent in each batch
+    # when registering the aggregated mission control data. The chosen value
+    # here 2000 mc pairs is not based on observations for historical mission
+    # control json data size. This is about 1024 KB (1 MB).
+    BATCH_REGISTER = 2000
+
     # Register mission control data from the LND node with the External
     # Coordinator (EC).
     mc_pairs_registered = register_my_lnd_mission_control_data_with_ec(
         lnd_macaroon_path=LND_MACAROON_PATH, lnd_tls_cert=LND_TLS_CERT,
         lnd_rest_host=LND_REST_HOST, ec_session=ec_session,
-        ec_rest_host=EC_REST_HOST
+        ec_rest_host=EC_REST_HOST, batch_register=BATCH_REGISTER
     )
     print((
         f"{len(mc_pairs_registered)} of your LND Mission Control pairs "
