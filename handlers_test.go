@@ -9,27 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	ecrpc "github.com/ziggie1984/Distributed-Mission-Control-for-LND/ecrpc"
 	"go.etcd.io/bbolt"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-// mockQueryAggregatedMissionControlServer is a mock implementation of the
-// ecrpc.ExternalCoordinator_QueryAggregatedMissionControlServer interface
-// to capture streaming responses in the tests.
-type mockQueryAggregatedMissionControlServer struct {
-	grpc.ServerStream
-	Responses []*ecrpc.QueryAggregatedMissionControlResponse
-}
-
-func (m *mockQueryAggregatedMissionControlServer) Send(resp *ecrpc.QueryAggregatedMissionControlResponse) error {
-	m.Responses = append(m.Responses, resp)
-	return nil
-}
-
-func (m *mockQueryAggregatedMissionControlServer) Context() context.Context {
-	return context.Background()
-}
 
 // generateTestKeys generates a pair of test keys for nodeFrom and nodeTo
 // identity sec compressed pub keys.
@@ -345,20 +327,16 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			// Creating a mock stream to capture the responses.
-			mockStream := &mockQueryAggregatedMissionControlServer{
-				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
-			}
-			err = server.QueryAggregatedMissionControl(
+			q_resp, q_err := server.QueryAggregatedMissionControl(
+				context.Background(),
 				&ecrpc.QueryAggregatedMissionControlRequest{},
-				mockStream,
 			)
-			require.NoError(t, err)
+			require.NoError(t, q_err)
+			require.NotNil(t, q_resp)
 
-			// Check that no data was removed since there is no
+			// Check that no data was removed cause there is no
 			// stale data.
-			require.Len(t, mockStream.Responses, 1)
-			require.Len(t, mockStream.Responses[0].Pairs, 1)
+			require.Len(t, q_resp.Pairs, 1)
 		})
 
 		// Case 12: Stale history.
@@ -389,19 +367,15 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			)
 			require.Error(t, err)
 
-			// Creating a mock stream to capture the responses.
-			mockStream := &mockQueryAggregatedMissionControlServer{
-				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
-			}
-			err = server.QueryAggregatedMissionControl(
+			q_resp, q_err := server.QueryAggregatedMissionControl(
+				context.Background(),
 				&ecrpc.QueryAggregatedMissionControlRequest{},
-				mockStream,
 			)
-			require.NoError(t, err)
+			require.NoError(t, q_err)
 
-			// Check that there are no data in the db since all
-			// the data was stale.
-			require.Empty(t, mockStream.Responses)
+			// Check that there are no data in the db cause all
+			// data was stale.
+			require.Empty(t, q_resp.Pairs)
 		})
 
 		// Case 13: Register new pair with old success and fail times
@@ -464,27 +438,23 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			// Creating a mock stream to capture the responses.
-			mockStream := &mockQueryAggregatedMissionControlServer{
-				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
-			}
-			err = server.QueryAggregatedMissionControl(
+			q_resp, q_err := server.QueryAggregatedMissionControl(
+				context.Background(),
 				&ecrpc.QueryAggregatedMissionControlRequest{},
-				mockStream,
 			)
-			require.NoError(t, err)
-			require.Len(t, mockStream.Responses, 1)
-			require.Len(t, mockStream.Responses[0].Pairs, 1)
+			require.NoError(t, q_err)
+			require.NotNil(t, q_resp)
+			require.Len(t, q_resp.Pairs, 1)
 
 			// Check the times stored are only the recent times.
-			gotSuccessTime :=
-				mockStream.Responses[0].Pairs[0].History.SuccessTime
-
-			gotFailTime :=
-				mockStream.Responses[0].Pairs[0].History.FailTime
-
-			require.Equal(t, gotSuccessTime, successTime)
-			require.Equal(t, gotFailTime, failTime)
+			require.Equal(
+				t, q_resp.Pairs[0].History.SuccessTime,
+				successTime,
+			)
+			require.Equal(
+				t, q_resp.Pairs[0].History.FailTime,
+				failTime,
+			)
 		})
 
 		// Case 14: Register new pair with more recent success and fail
@@ -547,28 +517,24 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			// Creating a mock stream to capture the responses.
-			mockStream := &mockQueryAggregatedMissionControlServer{
-				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
-			}
-			err = server.QueryAggregatedMissionControl(
+			q_resp, q_err := server.QueryAggregatedMissionControl(
+				context.Background(),
 				&ecrpc.QueryAggregatedMissionControlRequest{},
-				mockStream,
 			)
-			require.NoError(t, err)
-			require.Len(t, mockStream.Responses, 1)
-			require.Len(t, mockStream.Responses[0].Pairs, 1)
+			require.NoError(t, q_err)
+			require.NotNil(t, q_resp)
+			require.Len(t, q_resp.Pairs, 1)
 
 			// Check the times stored are only the recent times
 			// in the new pair registered.
-			gotSuccessTime :=
-				mockStream.Responses[0].Pairs[0].History.SuccessTime
-
-			gotFailTime :=
-				mockStream.Responses[0].Pairs[0].History.FailTime
-
-			require.Equal(t, gotSuccessTime, rSuccessTime)
-			require.Equal(t, gotFailTime, rFailTime)
+			require.Equal(
+				t, q_resp.Pairs[0].History.SuccessTime,
+				rSuccessTime,
+			)
+			require.Equal(
+				t, q_resp.Pairs[0].History.FailTime,
+				rFailTime,
+			)
 		})
 	})
 
@@ -602,25 +568,15 @@ func TestExternalCoordinatorServer(t *testing.T) {
 				})
 			require.NoError(t, err)
 
-			// Creating a mock stream to capture the responses.
-			mockStream := &mockQueryAggregatedMissionControlServer{
-				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
-			}
-			err = server.QueryAggregatedMissionControl(
+			resp, err := server.QueryAggregatedMissionControl(
+				context.Background(),
 				&ecrpc.QueryAggregatedMissionControlRequest{},
-				mockStream,
 			)
 			require.NoError(t, err)
-			require.Len(t, mockStream.Responses, 1)
-			require.Len(t, mockStream.Responses[0].Pairs, 1)
-			require.Equal(
-				t, nodeFrom,
-				mockStream.Responses[0].Pairs[0].NodeFrom,
-			)
-			require.Equal(
-				t, nodeTo,
-				mockStream.Responses[0].Pairs[0].NodeTo,
-			)
+			require.NotNil(t, resp)
+			require.Len(t, resp.Pairs, 1)
+			require.Equal(t, nodeFrom, resp.Pairs[0].NodeFrom)
+			require.Equal(t, nodeTo, resp.Pairs[0].NodeTo)
 		})
 
 		// Case 2: Valid request with no data in the database.
@@ -628,17 +584,13 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			err = clearDatabase(db)
 			require.NoError(t, err)
 			server := NewExternalCoordinatorServer(config, db)
-
-			// Creating a mock stream to capture the responses.
-			mockStream := &mockQueryAggregatedMissionControlServer{
-				Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
-			}
-			err = server.QueryAggregatedMissionControl(
+			resp, err := server.QueryAggregatedMissionControl(
+				context.Background(),
 				&ecrpc.QueryAggregatedMissionControlRequest{},
-				mockStream,
 			)
 			require.NoError(t, err)
-			require.Len(t, mockStream.Responses, 0)
+			require.NotNil(t, resp)
+			require.Len(t, resp.Pairs, 0)
 		})
 	})
 
@@ -710,23 +662,18 @@ func TestExternalCoordinatorServer(t *testing.T) {
 		// Start the cleanup routine.
 		server.RunCleanupRoutine(cleanupCtx, ticker)
 
-		// Creating a mock stream to capture the responses.
-		mockStream := &mockQueryAggregatedMissionControlServer{
-			Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
-		}
-
 		// After waiting for the ticker to tick, query the database to
 		// check if stale data has been removed.
-		err = server.QueryAggregatedMissionControl(
+		resp, err := server.QueryAggregatedMissionControl(
+			context.Background(),
 			&ecrpc.QueryAggregatedMissionControlRequest{},
-			mockStream,
 		)
 		require.NoError(t, err)
+		require.NotNil(t, resp)
 
 		// Assert that there is one pair in the response, indicating
 		// that all stale data has been removed.
-		require.Len(t, mockStream.Responses, 1)
-		require.Len(t, mockStream.Responses[0].Pairs, 1)
+		require.Len(t, resp.Pairs, 1)
 	})
 
 	t.Run("cleanupStaleData", func(t *testing.T) {
@@ -787,19 +734,14 @@ func TestExternalCoordinatorServer(t *testing.T) {
 		// Call cleanupStaleData to remove stale data.
 		server.cleanupStaleData()
 
-		// Creating a mock stream to capture the responses.
-		mockStream := &mockQueryAggregatedMissionControlServer{
-			Responses: make([]*ecrpc.QueryAggregatedMissionControlResponse, 0),
-		}
-
 		// Verify that all stale data is removed.
-		err = server.QueryAggregatedMissionControl(
+		resp, err := server.QueryAggregatedMissionControl(
+			context.Background(),
 			&ecrpc.QueryAggregatedMissionControlRequest{},
-			mockStream,
 		)
 		require.NoError(t, err)
-		require.Len(t, mockStream.Responses, 1)
-		require.Len(t, mockStream.Responses[0].Pairs, 1)
+		require.NotNil(t, resp)
+		require.Len(t, resp.Pairs, 1)
 	})
 
 	t.Run("sanitizeRegisterMissionControlRequest", func(t *testing.T) {
@@ -849,247 +791,242 @@ func TestExternalCoordinatorServer(t *testing.T) {
 	t.Run("mergePairData", func(t *testing.T) {
 		t.Parallel()
 
-		// Case 1: Update Success Time and Amounts.
-		// This test case verifies that if the new data has a more
-		// recent success time, the success time and amounts
-		// (sat and msat) in the existing data are updated
-		// correctly to the new values.
-		t.Run("Update Success Time and Amounts", func(t *testing.T) {
-			// Initial pair data (existing data).
+		// Case 1: New data has later success time.
+		t.Run("NewDataLaterSuccessTime", func(t *testing.T) {
 			existingData := &ecrpc.PairData{
-				SuccessTime:    100,
-				SuccessAmtSat:  5000,
-				SuccessAmtMsat: 5000000,
-				FailTime:       90,
-				FailAmtSat:     4000,
-				FailAmtMsat:    4000000,
-			}
-			// New pair data to merge.
-			newData := &ecrpc.PairData{
-				SuccessTime:    110,
-				SuccessAmtSat:  6000,
-				SuccessAmtMsat: 6000000,
+				SuccessTime:    time.Now().Unix(),
+				SuccessAmtSat:  100,
+				SuccessAmtMsat: 100_000,
+				FailTime:       time.Now().Add(-10 * time.Minute).Unix(),
+				FailAmtSat:     50,
+				FailAmtMsat:    50_000,
 			}
 
-			// Merging new data into existing data.
+			newData := &ecrpc.PairData{
+				SuccessTime:    time.Now().Add(5 * time.Minute).Unix(),
+				SuccessAmtSat:  200,
+				SuccessAmtMsat: 200_000,
+				FailTime:       time.Now().Add(-8 * time.Minute).Unix(),
+				FailAmtSat:     70,
+				FailAmtMsat:    70_000,
+			}
+
 			mergePairData(existingData, newData)
 
-			// Checking if SuccessTime is updated correctly.
-			if existingData.SuccessTime != newData.SuccessTime {
-				t.Errorf("Expected SuccessTime %v, got %v", newData.SuccessTime, existingData.SuccessTime)
-			}
-
-			// Checking if SuccessAmtSat is updated correctly.
-			if existingData.SuccessAmtSat != newData.SuccessAmtSat {
-				t.Errorf("Expected SuccessAmtSat %v, got %v", newData.SuccessAmtSat, existingData.SuccessAmtSat)
-			}
-
-			// Checking if SuccessAmtMsat is updated correctly.
-			if existingData.SuccessAmtMsat !=
-				newData.SuccessAmtMsat {
-				t.Errorf("Expected SuccessAmtMsat %v, got %v", newData.SuccessAmtMsat, existingData.SuccessAmtMsat)
-			}
+			require.Equal(
+				t, newData.SuccessTime,
+				existingData.SuccessTime,
+			)
+			require.Equal(
+				t, newData.SuccessAmtSat,
+				existingData.SuccessAmtSat,
+			)
+			require.Equal(
+				t, newData.SuccessAmtMsat,
+				existingData.SuccessAmtMsat,
+			)
+			require.Equal(
+				t, existingData.FailTime,
+				existingData.FailTime,
+			)
+			require.Equal(
+				t, existingData.FailAmtSat,
+				existingData.FailAmtSat,
+			)
+			require.Equal(
+				t, existingData.FailAmtMsat,
+				existingData.FailAmtMsat,
+			)
 		})
 
-		// Case 2: Update Failure Time and Amounts.
-		// This test case verifies that if the new data has a more
-		// recent failure time, the failure time and amounts
-		// (sat and msat) in the existing data are updated
-		// correctly to the new values.
-		t.Run("Update Failure Time and Amounts", func(t *testing.T) {
-			// Initial pair data (existing data).
+		// Case 2: Existing data has later success time.
+		t.Run("ExistingDataLaterSuccessTime", func(t *testing.T) {
 			existingData := &ecrpc.PairData{
-				FailTime:    100,
-				FailAmtSat:  4000,
-				FailAmtMsat: 4000000,
+				SuccessTime:    time.Now().Add(5 * time.Minute).Unix(),
+				SuccessAmtSat:  200,
+				SuccessAmtMsat: 200_000,
+				FailTime:       time.Now().Add(-8 * time.Minute).Unix(),
+				FailAmtSat:     70,
+				FailAmtMsat:    70_000,
 			}
 
-			// New pair data to merge.
 			newData := &ecrpc.PairData{
-				FailTime:    170,
-				FailAmtSat:  5000,
-				FailAmtMsat: 5000000,
+				SuccessTime:    time.Now().Unix(),
+				SuccessAmtSat:  100,
+				SuccessAmtMsat: 100_000,
+				FailTime:       time.Now().Add(-10 * time.Minute).Unix(),
+				FailAmtSat:     50,
+				FailAmtMsat:    50_000,
 			}
 
-			// Merging new data into existing data.
 			mergePairData(existingData, newData)
 
-			// Checking if FailTime is updated correctly.
-			if existingData.FailTime != newData.FailTime {
-				t.Errorf("Expected FailTime %v, got %v", newData.FailTime, existingData.FailTime)
-			}
-
-			// Checking if FailAmtSat is updated correctly.
-			if existingData.FailAmtSat != newData.FailAmtSat {
-				t.Errorf("Expected FailAmtSat %v, got %v", newData.FailAmtSat, existingData.FailAmtSat)
-			}
-
-			// Checking if FailAmtMsat is updated correctly.
-			if existingData.FailAmtMsat != newData.FailAmtMsat {
-				t.Errorf("Expected FailAmtMsat %v, got %v", newData.FailAmtMsat, existingData.FailAmtMsat)
-			}
+			require.Equal(
+				t, existingData.SuccessTime,
+				existingData.SuccessTime,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtSat,
+				existingData.SuccessAmtSat,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtMsat,
+				existingData.SuccessAmtMsat,
+			)
+			require.Equal(
+				t, existingData.FailTime,
+				existingData.FailTime,
+			)
+			require.Equal(
+				t, existingData.FailAmtSat,
+				existingData.FailAmtSat,
+			)
+			require.Equal(
+				t, existingData.FailAmtMsat,
+				existingData.FailAmtMsat,
+			)
 		})
 
-		// Case 3: Adjust Success Range.
-		// This test case verifies that if the new failure amount
-		// goes into the success range, the success range is adjusted
-		// correctly to avoid overlap.
-		t.Run("Adjust Success Range", func(t *testing.T) {
-			// Initial pair data (existing data).
+		// Case 3: New data has later fail time.
+		t.Run("NewDataLaterFailTime", func(t *testing.T) {
 			existingData := &ecrpc.PairData{
-				SuccessTime:    100,
-				SuccessAmtSat:  7000,
-				SuccessAmtMsat: 7000000,
-				FailTime:       90,
-				FailAmtSat:     8000,
-				FailAmtMsat:    8000000,
+				SuccessTime:    time.Now().Add(-5 * time.Minute).Unix(),
+				SuccessAmtSat:  200,
+				SuccessAmtMsat: 200_000,
+				FailTime:       time.Now().Unix(),
+				FailAmtSat:     70,
+				FailAmtMsat:    70_000,
 			}
 
-			// New pair data to merge.
 			newData := &ecrpc.PairData{
-				FailTime:    110,
-				FailAmtSat:  6000,
-				FailAmtMsat: 6000000,
+				SuccessTime:    time.Now().Add(-8 * time.Minute).Unix(),
+				SuccessAmtSat:  100,
+				SuccessAmtMsat: 100_000,
+				FailTime:       time.Now().Add(5 * time.Minute).Unix(),
+				FailAmtSat:     50,
+				FailAmtMsat:    50_000,
 			}
 
-			// Merging new data into existing data.
 			mergePairData(existingData, newData)
 
-			// Expected values after merge.
-			expectedSuccessAmtMsat := newData.FailAmtMsat - 1
-			expectedSuccessAmtSat :=
-				expectedSuccessAmtMsat / mSatScale
-
-			// Checking if SuccessAmtMsat is adjusted correctly.
-			if existingData.SuccessAmtMsat !=
-				expectedSuccessAmtMsat {
-				t.Errorf("Expected SuccessAmtMsat %v, got %v",
-					expectedSuccessAmtMsat,
-					existingData.SuccessAmtMsat)
-			}
-
-			// Checking if SuccessAmtSat is adjusted correctly.
-			if existingData.SuccessAmtSat != expectedSuccessAmtSat {
-				t.Errorf("Expected SuccessAmtSat %v, got %v",
-					expectedSuccessAmtSat,
-					existingData.SuccessAmtSat)
-			}
+			require.Equal(
+				t, existingData.SuccessTime,
+				existingData.SuccessTime,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtSat,
+				existingData.SuccessAmtSat,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtMsat,
+				existingData.SuccessAmtMsat,
+			)
+			require.Equal(
+				t, newData.FailTime, existingData.FailTime,
+			)
+			require.Equal(
+				t, newData.FailAmtSat, existingData.FailAmtSat,
+			)
+			require.Equal(
+				t, newData.FailAmtMsat,
+				existingData.FailAmtMsat,
+			)
 		})
 
-		// Case 4: Adjust Failure Range.
-		// This test case verifies that if the new success amount
-		// goes into the failure range, the failure range is
-		// adjusted correctly to avoid overlap.
-		t.Run("Adjust Failure Range", func(t *testing.T) {
-			// Initial pair data (existing data).
+		// Case 4: Existing data has later fail time.
+		t.Run("ExistingDataLaterFailTime", func(t *testing.T) {
 			existingData := &ecrpc.PairData{
-				SuccessTime:    100,
-				SuccessAmtSat:  5000,
-				SuccessAmtMsat: 5000000,
-				FailTime:       90,
-				FailAmtSat:     4000,
-				FailAmtMsat:    4000000,
-			}
-			// New pair data to merge.
-			newData := &ecrpc.PairData{
-				SuccessTime:    110,
-				SuccessAmtSat:  6000,
-				SuccessAmtMsat: 6000000,
+				SuccessTime:    time.Now().Add(-8 * time.Minute).Unix(),
+				SuccessAmtSat:  100,
+				SuccessAmtMsat: 100_000,
+				FailTime:       time.Now().Add(5 * time.Minute).Unix(),
+				FailAmtSat:     50,
+				FailAmtMsat:    50_000,
 			}
 
-			// Merging new data into existing data.
+			newData := &ecrpc.PairData{
+				SuccessTime:    time.Now().Add(-5 * time.Minute).Unix(),
+				SuccessAmtSat:  200,
+				SuccessAmtMsat: 200_000,
+				FailTime:       time.Now().Unix(),
+				FailAmtSat:     70,
+				FailAmtMsat:    70_000,
+			}
+
 			mergePairData(existingData, newData)
 
-			// Expected values after merge.
-			expectedFailAmtMsat := newData.SuccessAmtMsat + 1
-			expectedFailAmtSat :=
-				expectedFailAmtMsat / mSatScale
-
-			// Checking if FailAmtMsat is adjusted correctly.
-			if existingData.FailAmtMsat !=
-				expectedFailAmtMsat {
-				t.Errorf("Expected FailAmtMsat %v, got %v",
-					expectedFailAmtMsat,
-					existingData.FailAmtMsat)
-			}
-
-			// Checking if FailAmtSat is adjusted correctly.
-			if existingData.FailAmtSat != expectedFailAmtSat {
-				t.Errorf("Expected FailAmtSat %v, got %v",
-					expectedFailAmtSat,
-					existingData.SuccessAmtSat)
-			}
+			require.Equal(
+				t, newData.SuccessTime,
+				existingData.SuccessTime,
+			)
+			require.Equal(
+				t, newData.SuccessAmtSat,
+				existingData.SuccessAmtSat,
+			)
+			require.Equal(
+				t, newData.SuccessAmtMsat,
+				existingData.SuccessAmtMsat,
+			)
+			require.Equal(
+				t, existingData.FailTime,
+				existingData.FailTime,
+			)
+			require.Equal(
+				t, existingData.FailAmtSat,
+				existingData.FailAmtSat,
+			)
+			require.Equal(
+				t, existingData.FailAmtMsat,
+				existingData.FailAmtMsat,
+			)
 		})
 
-		// Case 5: Ignore Higher Failure Amount Within Relaxation
-		// Interval.
-		//
-		// This test case verifies that if a higher failure amount
-		// arrives too soon after a previous failure, it is ignored
-		// to avoid instability in the failure state.
-		t.Run("Ignore Higher Failure Amount Within Relaxation "+
-			"Interval", func(t *testing.T) {
-			// Initial pair data (existing data).
-			earlierFailTime := time.Now().Add(-5 * time.Second)
+		// Case 5: Both new and existing data have the same timestamps.
+		t.Run("SameTimestamps", func(t *testing.T) {
 			existingData := &ecrpc.PairData{
-				FailTime:    earlierFailTime.Unix(),
-				FailAmtSat:  4000,
-				FailAmtMsat: 4000000,
-			}
-			// New pair data to merge
-			newData := &ecrpc.PairData{
-				FailTime:    time.Now().Unix(),
-				FailAmtSat:  5000,
-				FailAmtMsat: 5000000,
+				SuccessTime:    time.Now().Add(-5 * time.Minute).Unix(),
+				SuccessAmtSat:  100,
+				SuccessAmtMsat: 100_000,
+				FailTime:       time.Now().Unix(),
+				FailAmtSat:     50,
+				FailAmtMsat:    50_000,
 			}
 
-			// Merging new data into existing data.
+			newData := &ecrpc.PairData{
+				SuccessTime:    existingData.SuccessTime,
+				SuccessAmtSat:  200,
+				SuccessAmtMsat: 200_000,
+				FailTime:       existingData.FailTime,
+				FailAmtSat:     70,
+				FailAmtMsat:    70_000,
+			}
+
 			mergePairData(existingData, newData)
 
-			// Checking if FailAmtSat remains unchanged.
-			if existingData.FailAmtSat != 4000 {
-				t.Errorf("Expected FailAmtSat to remain %v, got %v", 4000, existingData.FailAmtSat)
-			}
-
-			// Checking if FailAmtMsat remains unchanged.
-			if existingData.FailAmtMsat != 4000000 {
-				t.Errorf("Expected FailAmtMsat to remain %v, got %v", 4000000, existingData.FailAmtMsat)
-			}
-		})
-
-		// Case 6: Reset Success Amount to Zero for Amount-Independent
-		// Failure.
-		//
-		// This test case verifies that if the new failure amount is
-		// zero (indicating an amount-independent failure), the success
-		// amounts (sat and msat) in the existing data are reset to
-		// zero.
-		t.Run("Reset Success Amount to Zero for Amount-Independent "+
-			"Failure", func(t *testing.T) {
-			// Initial pair data (existing data).
-			existingData := &ecrpc.PairData{
-				SuccessAmtSat:  5000,
-				SuccessAmtMsat: 5000000,
-			}
-
-			// New pair data to merge.
-			newData := &ecrpc.PairData{
-				FailTime:   time.Now().Unix(),
-				FailAmtSat: 0,
-			}
-
-			// Merging new data into existing data.
-			mergePairData(existingData, newData)
-
-			// Checking if SuccessAmtSat is reset to zero.
-			if existingData.SuccessAmtSat != 0 {
-				t.Errorf("Expected SuccessAmtSat to be reset to 0, got %v", existingData.SuccessAmtSat)
-			}
-
-			// Checking if SuccessAmtMsat is reset to zero.
-			if existingData.SuccessAmtMsat != 0 {
-				t.Errorf("Expected SuccessAmtMsat to be reset to 0, got %v", existingData.SuccessAmtMsat)
-			}
+			// The function should not modify existingData in this case.
+			require.Equal(
+				t, existingData.SuccessTime, existingData.SuccessTime,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtSat,
+				existingData.SuccessAmtSat,
+			)
+			require.Equal(
+				t, existingData.SuccessAmtMsat,
+				existingData.SuccessAmtMsat,
+			)
+			require.Equal(
+				t, existingData.FailTime,
+				existingData.FailTime,
+			)
+			require.Equal(
+				t, existingData.FailAmtSat,
+				existingData.FailAmtSat,
+			)
+			require.Equal(
+				t, existingData.FailAmtMsat,
+				existingData.FailAmtMsat,
+			)
 		})
 	})
 

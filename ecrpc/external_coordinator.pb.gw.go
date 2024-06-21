@@ -57,20 +57,21 @@ func local_request_ExternalCoordinator_RegisterMissionControl_0(ctx context.Cont
 
 }
 
-func request_ExternalCoordinator_QueryAggregatedMissionControl_0(ctx context.Context, marshaler runtime.Marshaler, client ExternalCoordinatorClient, req *http.Request, pathParams map[string]string) (ExternalCoordinator_QueryAggregatedMissionControlClient, runtime.ServerMetadata, error) {
+func request_ExternalCoordinator_QueryAggregatedMissionControl_0(ctx context.Context, marshaler runtime.Marshaler, client ExternalCoordinatorClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq QueryAggregatedMissionControlRequest
 	var metadata runtime.ServerMetadata
 
-	stream, err := client.QueryAggregatedMissionControl(ctx, &protoReq)
-	if err != nil {
-		return nil, metadata, err
-	}
-	header, err := stream.Header()
-	if err != nil {
-		return nil, metadata, err
-	}
-	metadata.HeaderMD = header
-	return stream, metadata, nil
+	msg, err := client.QueryAggregatedMissionControl(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_ExternalCoordinator_QueryAggregatedMissionControl_0(ctx context.Context, marshaler runtime.Marshaler, server ExternalCoordinatorServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq QueryAggregatedMissionControlRequest
+	var metadata runtime.ServerMetadata
+
+	msg, err := server.QueryAggregatedMissionControl(ctx, &protoReq)
+	return msg, metadata, err
 
 }
 
@@ -88,7 +89,7 @@ func RegisterExternalCoordinatorHandlerServer(ctx context.Context, mux *runtime.
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/RegisterMissionControl", runtime.WithHTTPPathPattern("/v1/register_mission_control"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/RegisterMissionControl", runtime.WithHTTPPathPattern("/v1/registermissioncontrol"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -106,10 +107,28 @@ func RegisterExternalCoordinatorHandlerServer(ctx context.Context, mux *runtime.
 	})
 
 	mux.Handle("GET", pattern_ExternalCoordinator_QueryAggregatedMissionControl_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-		err := status.Error(codes.Unimplemented, "streaming calls are not yet supported in the in-process transport")
-		_, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
-		return
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		var err error
+		var annotatedContext context.Context
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/QueryAggregatedMissionControl", runtime.WithHTTPPathPattern("/v1/queryaggregatedmissioncontrol"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_ExternalCoordinator_QueryAggregatedMissionControl_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_ExternalCoordinator_QueryAggregatedMissionControl_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	return nil
@@ -159,7 +178,7 @@ func RegisterExternalCoordinatorHandlerClient(ctx context.Context, mux *runtime.
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/RegisterMissionControl", runtime.WithHTTPPathPattern("/v1/register_mission_control"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/RegisterMissionControl", runtime.WithHTTPPathPattern("/v1/registermissioncontrol"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -181,7 +200,7 @@ func RegisterExternalCoordinatorHandlerClient(ctx context.Context, mux *runtime.
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/QueryAggregatedMissionControl", runtime.WithHTTPPathPattern("/v1/query_aggregated_mission_control"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/ecrpc.ExternalCoordinator/QueryAggregatedMissionControl", runtime.WithHTTPPathPattern("/v1/queryaggregatedmissioncontrol"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
@@ -193,7 +212,7 @@ func RegisterExternalCoordinatorHandlerClient(ctx context.Context, mux *runtime.
 			return
 		}
 
-		forward_ExternalCoordinator_QueryAggregatedMissionControl_0(annotatedContext, mux, outboundMarshaler, w, req, func() (proto.Message, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
+		forward_ExternalCoordinator_QueryAggregatedMissionControl_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -201,13 +220,13 @@ func RegisterExternalCoordinatorHandlerClient(ctx context.Context, mux *runtime.
 }
 
 var (
-	pattern_ExternalCoordinator_RegisterMissionControl_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "register_mission_control"}, ""))
+	pattern_ExternalCoordinator_RegisterMissionControl_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "registermissioncontrol"}, ""))
 
-	pattern_ExternalCoordinator_QueryAggregatedMissionControl_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "query_aggregated_mission_control"}, ""))
+	pattern_ExternalCoordinator_QueryAggregatedMissionControl_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "queryaggregatedmissioncontrol"}, ""))
 )
 
 var (
 	forward_ExternalCoordinator_RegisterMissionControl_0 = runtime.ForwardResponseMessage
 
-	forward_ExternalCoordinator_QueryAggregatedMissionControl_0 = runtime.ForwardResponseStream
+	forward_ExternalCoordinator_QueryAggregatedMissionControl_0 = runtime.ForwardResponseMessage
 )

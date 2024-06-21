@@ -16,24 +16,15 @@
     "application/json"
   ],
   "paths": {
-    "/v1/query_aggregated_mission_control": {
+    "/v1/queryaggregatedmissioncontrol": {
       "get": {
         "summary": "QueryAggregatedMissionControl queries aggregated mission control data.",
         "operationId": "ExternalCoordinator_QueryAggregatedMissionControl",
         "responses": {
           "200": {
-            "description": "A successful response.(streaming responses)",
+            "description": "A successful response.",
             "schema": {
-              "type": "object",
-              "properties": {
-                "result": {
-                  "$ref": "#/definitions/ecrpcQueryAggregatedMissionControlResponse"
-                },
-                "error": {
-                  "$ref": "#/definitions/rpcStatus"
-                }
-              },
-              "title": "Stream result of ecrpcQueryAggregatedMissionControlResponse"
+              "$ref": "#/definitions/ecrpcQueryAggregatedMissionControlResponse"
             }
           },
           "default": {
@@ -48,7 +39,7 @@
         ]
       }
     },
-    "/v1/register_mission_control": {
+    "/v1/registermissioncontrol": {
       "post": {
         "summary": "RegisterMissionControl registers mission control data.",
         "operationId": "ExternalCoordinator_RegisterMissionControl",

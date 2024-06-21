@@ -16,25 +16,6 @@ import (
 	ecrpc "github.com/ziggie1984/Distributed-Mission-Control-for-LND/ecrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/protobuf/encoding/protojson"
-)
-
-var (
-	// DefaultMarshalOptions defines the marshalling options for JSON
-	// output in the gRPC-Gateway. These options ensure the JSON output is
-	// consistent mostly with gRPC's default serialization behavior.
-	DefaultMarshalOptions = protojson.MarshalOptions{
-		// Multiline: false ensures that the JSON output is compact
-		// (no pretty-printing). This is useful for reducing the size
-		// of the JSON payload and improving performance.
-		Multiline: false,
-
-		// EmitUnpopulated: false means that fields with zero values
-		// (e.g., empty strings, zero integers) will not be included in
-		// the JSON output. This matches the default behavior of gRPC
-		// and helps reduce the size of the JSON response.
-		EmitUnpopulated: false,
-	}
 )
 
 // initializeGRPCServer sets up the gRPC server but does not start it.
@@ -75,12 +56,7 @@ func initializeHTTPServer(ctx context.Context,
 	tlsConfig *tls.Config,
 	config *Config) (*http.Server, error) {
 	// Create a new ServeMux to route incoming requests.
-	marshalerOption := runtime.WithMarshalerOption(
-		runtime.MIMEWildcard, &runtime.JSONPb{
-			MarshalOptions: DefaultMarshalOptions,
-		},
-	)
-	mux := runtime.NewServeMux(marshalerOption)
+	mux := runtime.NewServeMux()
 
 	// Construct the path to the self-signed TLS certificate file.
 	tlsCertPath := filepath.Join(
@@ -136,7 +112,7 @@ func initializeHTTPServer(ctx context.Context,
 // startHTTPServer starts the provided HTTP server for the gRPC REST gateway.
 func startHTTPServer(config *Config, httpServer *http.Server) error {
 	logrus.Infof("Starting HTTP/1.1 REST server on https://%s%s",
-		config.Server.RESTServerHost, config.Server.RESTServerPort)
+		config.Server.RESTServerHost, DefaultRestServerPort)
 
 	certFile := filepath.Join(
 		config.TLS.SelfSignedTLSDirPath,

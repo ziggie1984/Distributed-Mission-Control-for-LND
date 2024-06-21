@@ -10,15 +10,15 @@ service ExternalCoordinator {
     // RegisterMissionControl registers mission control data.
     rpc RegisterMissionControl(RegisterMissionControlRequest) returns (RegisterMissionControlResponse) {
         option (google.api.http) = {
-            post: "/v1/register_mission_control"
+            post: "/v1/registermissioncontrol"
             body: "*"
         };
     }
 
     // QueryAggregatedMissionControl queries aggregated mission control data.
-    rpc QueryAggregatedMissionControl(QueryAggregatedMissionControlRequest) returns (stream QueryAggregatedMissionControlResponse) {
+    rpc QueryAggregatedMissionControl(QueryAggregatedMissionControlRequest) returns (QueryAggregatedMissionControlResponse) {
         option (google.api.http) = {
-            get: "/v1/query_aggregated_mission_control"
+            get: "/v1/queryaggregatedmissioncontrol"
         };
     }
 }
