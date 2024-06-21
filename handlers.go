@@ -15,21 +15,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const (
-	// PubKeyCompressedSize is the size of a single compressed sec pub key
-	// in bytes.
-	PubKeyCompressedSize = 33
-
-	// PubKeyCompressedSizeDouble is the size of compressed sec pub keys
-	// for both the source and destination nodes in the mission control
-	// data pair.
-	PubKeyCompressedSizeDouble = PubKeyCompressedSize * 2
-
-	// mSatScale is a value that's used to scale satoshis to
-	// milli-satoshis, and the other way around.
-	mSatScale int64 = 1000
-)
-
 // externalCoordinatorServer provides methods to register and query mission
 // control data.
 type externalCoordinatorServer struct {
@@ -71,9 +56,7 @@ func (s *externalCoordinatorServer) RegisterMissionControl(ctx context.Context,
 	}
 
 	// Initialize a map to aggregate mission control data.
-	aggregatedData := make(
-		map[[PubKeyCompressedSizeDouble]byte]*ecrpc.PairData,
-	)
+	aggregatedData := make(map[[66]byte]*ecrpc.PairData)
 
 	// Use Batch over Update to reduce tx commits overhead and database
 	// locking, enhancing performance and responsiveness under high write
@@ -92,7 +75,7 @@ func (s *externalCoordinatorServer) RegisterMissionControl(ctx context.Context,
 				return status.Errorf(codes.Internal, msg, err)
 			}
 
-			aggregatedData[[PubKeyCompressedSizeDouble]byte(k)] = history
+			aggregatedData[[66]byte(k)] = history
 
 			return nil
 		})
@@ -107,9 +90,7 @@ func (s *externalCoordinatorServer) RegisterMissionControl(ctx context.Context,
 		// Aggregate all data in the database with user registered data.
 		for _, pair := range req.Pairs {
 			// Aggregate the data based on the key.
-			key := [PubKeyCompressedSizeDouble]byte(
-				append(pair.NodeFrom, pair.NodeTo...),
-			)
+			key := [66]byte(append(pair.NodeFrom, pair.NodeTo...))
 
 			if existingData, ok := aggregatedData[key]; ok {
 				// If data for the key exists, merge it with
@@ -173,12 +154,12 @@ func (s *externalCoordinatorServer) RegisterMissionControl(ctx context.Context,
 
 // QueryAggregatedMissionControl queries aggregated mission control data.
 func (s *externalCoordinatorServer) QueryAggregatedMissionControl(
-	req *ecrpc.QueryAggregatedMissionControlRequest,
-	stream ecrpc.ExternalCoordinator_QueryAggregatedMissionControlServer) error {
+	ctx context.Context, req *ecrpc.QueryAggregatedMissionControlRequest) (*ecrpc.QueryAggregatedMissionControlResponse, error) {
 	// Log the receipt of the query request.
 	logrus.Info("Received QueryAggregatedMissionControl request")
 
 	var pairs []*ecrpc.PairHistory
+
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(DatabaseBucketName))
 
@@ -198,65 +179,28 @@ func (s *externalCoordinatorServer) QueryAggregatedMissionControl(
 				return status.Errorf(codes.Internal, msg, err)
 			}
 
-			nodeFrom := k[:PubKeyCompressedSize]
-			nodeTo := k[PubKeyCompressedSize:]
 			pair := &ecrpc.PairHistory{
-				NodeFrom: nodeFrom,
-				NodeTo:   nodeTo,
+				NodeFrom: k[:33],
+				NodeTo:   k[33:],
 				History:  history,
 			}
 			pairs = append(pairs, pair)
 
-			// If the batch size is reached, send the batch.
-			batch := s.config.Server.QueryMissionControlBatchSize
-			if len(pairs) == batch {
-				response := &ecrpc.QueryAggregatedMissionControlResponse{
-					Pairs: pairs,
-				}
-				if err := stream.Send(response); err != nil {
-					return status.Errorf(codes.Internal, "failed to send batch: %v", err)
-				}
-
-				// Log the number of pairs retrieved.
-				logrus.Infof("Retrieved %d pairs from the "+
-					"database", len(pairs))
-
-				// Clear the pairs slice for the next batch
-				// while maintaining the same original capacity.
-				pairs = pairs[:0]
-			}
-
 			return nil
 		})
-		if err != nil {
-			msg := "error while iterating through bucket: %v"
-			logrus.Errorf(msg, err)
-			return status.Errorf(codes.Internal, msg, err)
-		}
 
-		// Send any remaining pairs as the final batch.
-		if len(pairs) > 0 {
-			response := &ecrpc.QueryAggregatedMissionControlResponse{
-				Pairs: pairs,
-			}
-			if err := stream.Send(response); err != nil {
-				return status.Errorf(codes.Internal, "failed "+
-					"to send final batch: %v", err)
-			}
-			// Log the number of pairs retrieved.
-			logrus.Infof("Retrieved %d pairs from the database",
-				len(pairs))
-		}
+		// Log the number of pairs retrieved.
+		logrus.Infof("Retrieved %d pairs from the database", len(pairs))
 
 		return err
 	})
 	if err != nil {
 		msg := "query failed: %v"
 		logrus.Errorf(msg, err)
-		return status.Errorf(codes.Internal, msg, err)
+		return nil, status.Errorf(codes.Internal, msg, err)
 	}
 
-	return nil
+	return &ecrpc.QueryAggregatedMissionControlResponse{Pairs: pairs}, nil
 }
 
 // RunCleanupRoutine runs a routine to cleanup stale data from the database
@@ -369,19 +313,17 @@ func (s *externalCoordinatorServer) validateRegisterMissionControlRequest(req *e
 	for _, pair := range req.Pairs {
 		// Validate that NodeFrom is exactly 33 bytes i.e compressed sec
 		// pub key.
-		if len(pair.NodeFrom) != PubKeyCompressedSize {
+		if len(pair.NodeFrom) != 33 {
 			return status.Errorf(codes.InvalidArgument, "NodeFrom "+
-				"must be exactly %d bytes",
-				PubKeyCompressedSize,
+				"must be exactly 33 bytes",
 			)
 		}
 
 		// Validate that NodeTo is exactly 33 bytes i.e compressed sec
 		// pub key.
-		if len(pair.NodeTo) != PubKeyCompressedSize {
+		if len(pair.NodeTo) != 33 {
 			return status.Errorf(codes.InvalidArgument, "NodeTo "+
-				"must be exactly %d bytes",
-				PubKeyCompressedSize,
+				"must be exactly 33 bytes",
 			)
 		}
 
@@ -410,13 +352,24 @@ func (s *externalCoordinatorServer) validateRegisterMissionControlRequest(req *e
 
 		// Validate fail and success amounts are non-negative.
 		if pair.History.FailAmtSat < 0 ||
-			pair.History.SuccessAmtSat < 0 ||
-			pair.History.FailAmtMsat < 0 ||
-			pair.History.SuccessAmtMsat < 0 {
+			pair.History.SuccessAmtSat < 0 {
 			return status.Errorf(
 				codes.InvalidArgument, "Fail and success "+
 					"amounts must be non-negative",
 			)
+		}
+
+		// Validate the conversion from AmtSat to millisatoshi.
+		if pair.History.FailAmtMsat != pair.History.FailAmtSat*1000 {
+			return status.Errorf(codes.InvalidArgument, "Fail "+
+				"amount in millisatoshi does not match the "+
+				"conversion from satoshi")
+		}
+		if pair.History.SuccessAmtMsat !=
+			pair.History.SuccessAmtSat*1000 {
+			return status.Errorf(codes.InvalidArgument, "Success "+
+				"amount in millisatoshi does not match the "+
+				"conversion from satoshi")
 		}
 
 		// Validate History data is not stale according to configured
@@ -490,78 +443,20 @@ func isHistoryStale(history *ecrpc.PairData, threshold time.Duration) bool {
 }
 
 // mergePairData merges the pair data from two pairs based on the most recent
-// timestamp. It does the following:
-//   - It updates the success time and amounts if there are more recent history
-//     pairs, ensuring that the maximum success amount of the history pair is
-//     retained to prevent the success range from shrinking when unnecessary,
-//   - It prevents the failure from updating too soon based on the configured
-//     MinFailureRelaxInterval value.
-//   - It also adjusts the failure range if the success amount goes into the
-//     failure range and adjusts the success range if the failure amount goes
-//     into the success range.
-//
-// Parameters:
-// - existingData: The existing pair data to merge with.
-// - newData: The new pair data to merge with.
+// timestamp.
 func mergePairData(existingData, newData *ecrpc.PairData) {
-
+	// Update success time and amounts if the new data's success time is
+	// greater.
 	if newData.SuccessTime > existingData.SuccessTime {
-		// Update success time and amounts if newer, retaining max
-		// success amount to avoid shrinking success range
-		// unnecessarily.
 		existingData.SuccessTime = newData.SuccessTime
-		if newData.SuccessAmtMsat > existingData.SuccessAmtMsat {
-			existingData.SuccessAmtMsat = newData.SuccessAmtMsat
-		}
+		existingData.SuccessAmtSat = newData.SuccessAmtSat
+		existingData.SuccessAmtMsat = newData.SuccessAmtMsat
 	}
 
+	// Update fail time and amounts if the new data's fail time is greater.
 	if newData.FailTime > existingData.FailTime {
-		// Drop result if it would increase the failure amount too soon
-		// after a previous failure. This can happen if htlc results
-		// come in out of order. This check makes it easier for payment
-		// processes to converge to a final state
-		newFailureTimestamp := time.Unix(newData.FailTime, 0)
-		currentFailureTimestamp := time.Unix(existingData.FailTime, 0)
-		failInterval := newFailureTimestamp.Sub(currentFailureTimestamp)
-		if newData.FailAmtMsat > existingData.FailAmtMsat &&
-			failInterval < MinFailureRelaxInterval {
-			logrus.Debugf("Ignoring higher amount failure within "+
-				"min failure relaxation interval: "+
-				"prev_fail_amt=%v, fail_amt=%v, interval=%v",
-				existingData.FailAmtMsat, newData.FailAmtMsat,
-				failInterval)
-			return
-		}
-
 		existingData.FailTime = newData.FailTime
+		existingData.FailAmtSat = newData.FailAmtSat
 		existingData.FailAmtMsat = newData.FailAmtMsat
-
-		switch {
-		// The failure amount is set to zero when the failure is
-		// amount-independent, meaning that the attempt would have
-		// failed regardless of the amount. This should also reset the
-		// success amount to zero.
-		case newData.FailAmtMsat == 0:
-			existingData.SuccessAmtMsat = 0
-
-		// If the failure range goes into the success range, move the
-		// success range down.
-		case newData.FailAmtMsat <= existingData.SuccessAmtMsat:
-			existingData.SuccessAmtMsat = newData.FailAmtMsat - 1
-		}
 	}
-
-	// Move the failure range up if the success amount goes into the
-	// failure range. We don't want to clear the failure completely
-	// because we haven't learnt much for amounts above the current
-	// success amount.
-	if existingData.FailTime != 0 &&
-		newData.SuccessAmtMsat >= existingData.FailAmtMsat {
-		existingData.FailAmtMsat = newData.SuccessAmtMsat + 1
-	}
-
-	// Update Success and Failure Satoshi amounts based on the
-	// millisatoshi unit type, ignoring the fractions of satoshi.
-	existingData.SuccessAmtSat = existingData.SuccessAmtMsat / mSatScale
-	existingData.FailAmtSat = existingData.FailAmtMsat / mSatScale
 }

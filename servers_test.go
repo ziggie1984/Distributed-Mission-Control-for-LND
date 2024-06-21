@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -113,7 +112,7 @@ func TestInitializeHTTPServer(t *testing.T) {
 	config := &Config{
 		TLS: TLSConfig{
 			SelfSignedTLSDirPath:  tempDir,
-			SelfSignedTLSCertFile: "tls.cert",
+			SelfSignedTLSCertFile: "tls.crt",
 			SelfSignedTLSKeyFile:  "tls.key",
 		},
 		Server: ServerConfig{
@@ -203,7 +202,7 @@ func TestStartGRPCServer(t *testing.T) {
 		},
 		TLS: TLSConfig{
 			SelfSignedTLSDirPath:  tempDir,
-			SelfSignedTLSCertFile: "tls.cert",
+			SelfSignedTLSCertFile: "tls.crt",
 			SelfSignedTLSKeyFile:  "tls.key",
 		},
 		Database: DatabaseConfig{
@@ -367,7 +366,7 @@ func TestStartHTTPServer(t *testing.T) {
 		},
 		TLS: TLSConfig{
 			SelfSignedTLSDirPath:  tempDir,
-			SelfSignedTLSCertFile: "tls.cert",
+			SelfSignedTLSCertFile: "tls.crt",
 			SelfSignedTLSKeyFile:  "tls.key",
 		},
 		Database: DatabaseConfig{
@@ -515,7 +514,7 @@ func TestStartHTTPServer(t *testing.T) {
 	// data.
 	resp, err := client.Get(
 		fmt.Sprintf(
-			"https://localhost%s/v1/query_aggregated_mission_control", config.Server.RESTServerPort,
+			"https://localhost%s/v1/queryaggregatedmissioncontrol", config.Server.RESTServerPort,
 		),
 	)
 	if err != nil {
@@ -534,22 +533,10 @@ func TestStartHTTPServer(t *testing.T) {
 		t.Fatalf("Failed to read HTTP response body: %v", err)
 	}
 
-	// Define a wrapper struct to capture the "result" field which added
-	// automatically by grpc-gateway in case of streaming response.
-	type WrappedResponse struct {
-		Result json.RawMessage `json:"result"`
-	}
-
-	// Unmarshal the wrapped response first.
-	var wrapped WrappedResponse
-	if err := json.Unmarshal(body, &wrapped); err != nil {
-		t.Fatalf("Failed to unmarshal wrapped HTTP response: %v", err)
-	}
-
-	// Unmarshal the actual response from the "result" field into
-	// a QueryAggregatedMissionControlResponse object.
+	// Unmarshal the response into a QueryAggregatedMissionControlResponse
+	// object.
 	var response ecrpc.QueryAggregatedMissionControlResponse
-	if err := protojson.Unmarshal(wrapped.Result, &response); err != nil {
+	if err := protojson.Unmarshal(body, &response); err != nil {
 		t.Fatalf("Failed to unmarshal HTTP response: %v", err)
 	}
 
@@ -591,7 +578,7 @@ func TestStartPProfServer(t *testing.T) {
 	config := &Config{
 		TLS: TLSConfig{
 			SelfSignedTLSDirPath:  tempDir,
-			SelfSignedTLSCertFile: "tls.cert",
+			SelfSignedTLSCertFile: "tls.crt",
 			SelfSignedTLSKeyFile:  "tls.key",
 		},
 		PProf: PProfConfig{

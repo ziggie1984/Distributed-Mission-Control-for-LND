@@ -13,7 +13,5 @@ plugins:
     opt:
       - paths=source_relative
       - generate_unbound_methods=true
-  - plugin: buf.build/grpc/python:v1.64.1
-    out: ./client
   - name: openapiv2
     out: .
