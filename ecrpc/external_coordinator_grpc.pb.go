@@ -30,7 +30,7 @@ type ExternalCoordinatorClient interface {
 	// RegisterMissionControl registers mission control data.
 	RegisterMissionControl(ctx context.Context, in *RegisterMissionControlRequest, opts ...grpc.CallOption) (*RegisterMissionControlResponse, error)
 	// QueryAggregatedMissionControl queries aggregated mission control data.
-	QueryAggregatedMissionControl(ctx context.Context, in *QueryAggregatedMissionControlRequest, opts ...grpc.CallOption) (*QueryAggregatedMissionControlResponse, error)
+	QueryAggregatedMissionControl(ctx context.Context, in *QueryAggregatedMissionControlRequest, opts ...grpc.CallOption) (ExternalCoordinator_QueryAggregatedMissionControlClient, error)
 }
 
 type externalCoordinatorClient struct {
@@ -50,13 +50,36 @@ func (c *externalCoordinatorClient) RegisterMissionControl(ctx context.Context, 
 	return out, nil
 }
 
-func (c *externalCoordinatorClient) QueryAggregatedMissionControl(ctx context.Context, in *QueryAggregatedMissionControlRequest, opts ...grpc.CallOption) (*QueryAggregatedMissionControlResponse, error) {
-	out := new(QueryAggregatedMissionControlResponse)
-	err := c.cc.Invoke(ctx, ExternalCoordinator_QueryAggregatedMissionControl_FullMethodName, in, out, opts...)
+func (c *externalCoordinatorClient) QueryAggregatedMissionControl(ctx context.Context, in *QueryAggregatedMissionControlRequest, opts ...grpc.CallOption) (ExternalCoordinator_QueryAggregatedMissionControlClient, error) {
+	stream, err := c.cc.NewStream(ctx, &ExternalCoordinator_ServiceDesc.Streams[0], ExternalCoordinator_QueryAggregatedMissionControl_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &externalCoordinatorQueryAggregatedMissionControlClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type ExternalCoordinator_QueryAggregatedMissionControlClient interface {
+	Recv() (*QueryAggregatedMissionControlResponse, error)
+	grpc.ClientStream
+}
+
+type externalCoordinatorQueryAggregatedMissionControlClient struct {
+	grpc.ClientStream
+}
+
+func (x *externalCoordinatorQueryAggregatedMissionControlClient) Recv() (*QueryAggregatedMissionControlResponse, error) {
+	m := new(QueryAggregatedMissionControlResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // ExternalCoordinatorServer is the server API for ExternalCoordinator service.
@@ -66,7 +89,7 @@ type ExternalCoordinatorServer interface {
 	// RegisterMissionControl registers mission control data.
 	RegisterMissionControl(context.Context, *RegisterMissionControlRequest) (*RegisterMissionControlResponse, error)
 	// QueryAggregatedMissionControl queries aggregated mission control data.
-	QueryAggregatedMissionControl(context.Context, *QueryAggregatedMissionControlRequest) (*QueryAggregatedMissionControlResponse, error)
+	QueryAggregatedMissionControl(*QueryAggregatedMissionControlRequest, ExternalCoordinator_QueryAggregatedMissionControlServer) error
 	mustEmbedUnimplementedExternalCoordinatorServer()
 }
 
@@ -77,8 +100,8 @@ type UnimplementedExternalCoordinatorServer struct {
 func (UnimplementedExternalCoordinatorServer) RegisterMissionControl(context.Context, *RegisterMissionControlRequest) (*RegisterMissionControlResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterMissionControl not implemented")
 }
-func (UnimplementedExternalCoordinatorServer) QueryAggregatedMissionControl(context.Context, *QueryAggregatedMissionControlRequest) (*QueryAggregatedMissionControlResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method QueryAggregatedMissionControl not implemented")
+func (UnimplementedExternalCoordinatorServer) QueryAggregatedMissionControl(*QueryAggregatedMissionControlRequest, ExternalCoordinator_QueryAggregatedMissionControlServer) error {
+	return status.Errorf(codes.Unimplemented, "method QueryAggregatedMissionControl not implemented")
 }
 func (UnimplementedExternalCoordinatorServer) mustEmbedUnimplementedExternalCoordinatorServer() {}
 
@@ -111,22 +134,25 @@ func _ExternalCoordinator_RegisterMissionControl_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ExternalCoordinator_QueryAggregatedMissionControl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(QueryAggregatedMissionControlRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _ExternalCoordinator_QueryAggregatedMissionControl_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(QueryAggregatedMissionControlRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(ExternalCoordinatorServer).QueryAggregatedMissionControl(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ExternalCoordinator_QueryAggregatedMissionControl_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ExternalCoordinatorServer).QueryAggregatedMissionControl(ctx, req.(*QueryAggregatedMissionControlRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(ExternalCoordinatorServer).QueryAggregatedMissionControl(m, &externalCoordinatorQueryAggregatedMissionControlServer{stream})
+}
+
+type ExternalCoordinator_QueryAggregatedMissionControlServer interface {
+	Send(*QueryAggregatedMissionControlResponse) error
+	grpc.ServerStream
+}
+
+type externalCoordinatorQueryAggregatedMissionControlServer struct {
+	grpc.ServerStream
+}
+
+func (x *externalCoordinatorQueryAggregatedMissionControlServer) Send(m *QueryAggregatedMissionControlResponse) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 // ExternalCoordinator_ServiceDesc is the grpc.ServiceDesc for ExternalCoordinator service.
@@ -140,11 +166,13 @@ var ExternalCoordinator_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "RegisterMissionControl",
 			Handler:    _ExternalCoordinator_RegisterMissionControl_Handler,
 		},
+	},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "QueryAggregatedMissionControl",
-			Handler:    _ExternalCoordinator_QueryAggregatedMissionControl_Handler,
+			StreamName:    "QueryAggregatedMissionControl",
+			Handler:       _ExternalCoordinator_QueryAggregatedMissionControl_Handler,
+			ServerStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "ecrpc/external_coordinator.proto",
 }

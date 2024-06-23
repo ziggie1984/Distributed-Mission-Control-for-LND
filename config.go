@@ -17,7 +17,7 @@ import (
 const (
 	// DefaultAppName is the default app name for the external coordinator
 	// service.
-	DefaultAppName = "ExternalCoordinator"
+	DefaultAppName = "EC"
 
 	// DefaultConfigFilename is the default filename for the server
 	// configuration file.
@@ -33,7 +33,7 @@ const (
 
 	// DefaultTLSCertFilename is the default filename for the TLS
 	// self-signed certificate used by the server.
-	DefaultTLSCertFilename = "tls.crt"
+	DefaultTLSCertFilename = "tls.cert"
 
 	// DefaultTLSKeyFilename is the default filename for the TLS key
 	// associated with the server's certificate.
@@ -90,6 +90,17 @@ const (
 	// hours i.e. the cleanup will happen every day.
 	DefaultStaleDataCleanupInterval = 24 * time.Hour
 
+	// DefaultQueryMissionControlBatchSize specifies the default number of
+	// pairs to be sent in each batch when querying the aggregated mission
+	// control data. The size of a given mission control pair is ~114 bytes
+	// as defined in the proto file. With the default value of 4600 pairs,
+	// the batch size would be approximately 512 KB (1/2 MB). Although the
+	// limit of gRPC message size is 4MB we set the batch size. Although the
+	// default limit of gRPC message size is 4MB, we set the batch size to
+	// improve efficiency and avoid issues with the large message
+	// transmission and higher memory consumption.
+	DefaultQueryMissionControlBatchSize = 4600
+
 	// DefaultLogLevel specifies the default logging level used across the
 	// application.
 	DefaultLogLevel = "info"
@@ -112,6 +123,16 @@ const (
 	// DatabaseBucketName specifies the default name of the bucket used
 	// within the bbolt database for mission control data.
 	DatabaseBucketName = "MissionControl"
+
+	// MinFailureRelaxInterval is the minimum time that must
+	// have passed since the previously recorded failure before the failure
+	// amount may be raised in the context of mission control data.
+	//
+	// NOTE: This interval value is the same as the one used in LND.
+	// Be cautious when changing it, as it could create inconsistencies
+	// when a client queries the aggregated mission control data from the
+	// EC.
+	MinFailureRelaxInterval = time.Minute
 
 	// File and directory permission constants.
 
@@ -162,12 +183,13 @@ type Config struct {
 
 // ServerConfig holds the server configuration values.
 type ServerConfig struct {
-	GRPCServerHost           string        `mapstructure:"grpc_server_host" description:"The host address for the gRPC server. Specify the IP address or hostname that the gRPC server will bind to. Default is '0.0.0.0', which represents all available network interfaces."`
-	GRPCServerPort           string        `mapstructure:"grpc_server_port" description:"The port number for the gRPC server. This is the port on which the gRPC server will listen for incoming connections."`
-	RESTServerHost           string        `mapstructure:"rest_server_host" description:"The host address for the RESTful server interface provided via gRPC Gateway. It determines the network address the HTTP server binds to. Default is '0.0.0.0, which represents all available network interfaces."`
-	RESTServerPort           string        `mapstructure:"rest_server_port" description:"The port number for the RESTful HTTP server. This port will be used for handling HTTP requests that are translated into gRPC calls."`
-	HistoryThresholdDuration time.Duration `mapstructure:"history_threshold_duration" description:"The duration threshold for history data pair, by default set to 7 days. If historical data pair exceed this threshold, It is considered too old and will be removed from the database. This threshold is also used to validate and sanitize against the mission control data being registered."`
-	StaleDataCleanupInterval time.Duration `mapstructure:"stale_data_cleanup_interval" description:"The interval for cleaning up stale mission control data from the database, by default set to 24 hours i.e. the cleanup will happen every day."`
+	GRPCServerHost               string        `mapstructure:"grpc_server_host" description:"The host address for the gRPC server. Specify the IP address or hostname that the gRPC server will bind to. Default is '0.0.0.0', which represents all available network interfaces."`
+	GRPCServerPort               string        `mapstructure:"grpc_server_port" description:"The port number for the gRPC server. This is the port on which the gRPC server will listen for incoming connections."`
+	RESTServerHost               string        `mapstructure:"rest_server_host" description:"The host address for the RESTful server interface provided via gRPC Gateway. It determines the network address the HTTP server binds to. Default is '0.0.0.0, which represents all available network interfaces."`
+	RESTServerPort               string        `mapstructure:"rest_server_port" description:"The port number for the RESTful HTTP server. This port will be used for handling HTTP requests that are translated into gRPC calls."`
+	HistoryThresholdDuration     time.Duration `mapstructure:"history_threshold_duration" description:"The duration threshold for history data pair, by default set to 7 days. If historical data pair exceed this threshold, It is considered too old and will be removed from the database. This threshold is also used to validate and sanitize against the mission control data being registered."`
+	StaleDataCleanupInterval     time.Duration `mapstructure:"stale_data_cleanup_interval" description:"The interval for cleaning up stale mission control data from the database, by default set to 24 hours i.e. the cleanup will happen every day."`
+	QueryMissionControlBatchSize int           `mapstructure:"query_mission_control_batch_size" description:"The default number of pairs to be sent in each batch when querying the aggregated mission control data. The size of a given mission control pair is ~114 bytes as defined in the proto file. With the default value of 4600 pairs, the batch size would be approximately 512 KB (1/2 MB)."`
 }
 
 // PProfConfig holds the pprof configuration values.
@@ -212,12 +234,13 @@ func DefaultConfig() (Config, error) {
 	appPath := AppPath(runtime.GOOS, homeDir)
 	return Config{
 		Server: ServerConfig{
-			GRPCServerHost:           DefaultGrpcServerHost,
-			GRPCServerPort:           DefaultGrpcServerPort,
-			RESTServerHost:           DefaultRestServerHost,
-			RESTServerPort:           DefaultRestServerPort,
-			HistoryThresholdDuration: DefaultHistoryThresholdDuration,
-			StaleDataCleanupInterval: DefaultStaleDataCleanupInterval,
+			GRPCServerHost:               DefaultGrpcServerHost,
+			GRPCServerPort:               DefaultGrpcServerPort,
+			RESTServerHost:               DefaultRestServerHost,
+			RESTServerPort:               DefaultRestServerPort,
+			HistoryThresholdDuration:     DefaultHistoryThresholdDuration,
+			StaleDataCleanupInterval:     DefaultStaleDataCleanupInterval,
+			QueryMissionControlBatchSize: DefaultQueryMissionControlBatchSize,
 		},
 		PProf: PProfConfig{
 			PProfServerHost: DefaultPProfServerHost,
