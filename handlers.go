@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -334,8 +336,8 @@ func (s *externalCoordinatorServer) cleanupStaleData() {
 		})
 
 		if err != nil {
-			return fmt.Errorf("error while iterating through "+
-				"bucket: %v", err)
+			return status.Errorf(codes.Internal, "error while "+
+				"iterating through bucket: %v", err)
 		}
 
 		return nil
@@ -401,11 +403,21 @@ func (s *externalCoordinatorServer) validateRegisterMissionControlRequest(req *e
 			)
 		}
 
+		// Prettify the nodeFrom and nodeTo pairs.
+		pairPrefix := fmt.Sprintf("pair: %s -> %s",
+			hex.EncodeToString(pair.NodeFrom),
+			hex.EncodeToString(pair.NodeTo),
+		)
+		// Validate that NodeFrom and NodeTo pairs are not equal.
+		if bytes.Equal(pair.NodeFrom, pair.NodeTo) {
+			return status.Errorf(codes.InvalidArgument, "%s: "+
+				"source and destination node must differ", pairPrefix)
+		}
+
 		// Validate the history data.
 		if pair.History == nil {
-			return status.Errorf(codes.InvalidArgument, "History "+
-				"cannot be nil",
-			)
+			return status.Errorf(codes.InvalidArgument, "%s: "+
+				"History cannot be nil", pairPrefix)
 		}
 
 		// Validate fail and success amounts are non-negative.
@@ -414,10 +426,49 @@ func (s *externalCoordinatorServer) validateRegisterMissionControlRequest(req *e
 			pair.History.FailAmtMsat < 0 ||
 			pair.History.SuccessAmtMsat < 0 {
 			return status.Errorf(
-				codes.InvalidArgument, "Fail and success "+
-					"amounts must be non-negative",
+				codes.InvalidArgument, "%s: Fail and success "+
+					"amounts must be non-negative", pairPrefix,
 			)
 		}
+
+		// Check if failure timestamp and amount are consistent with
+		// each other.
+		failMsat, failTime, err := validatePair(
+			pair.History.FailAmtMsat, pair.History.FailAmtSat,
+			pair.History.FailTime, true,
+		)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "%s: "+
+				"invalid failure: %v", pairPrefix, err)
+		}
+
+		// Check if success timestamp and amount are consistent with
+		// each other.
+		successMsat, successTime, err := validatePair(
+			pair.History.SuccessAmtMsat, pair.History.SuccessAmtSat,
+			pair.History.SuccessTime, false,
+		)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "%s: "+
+				"invalid success: %v", pairPrefix, err)
+		}
+
+		// Throw an error if both successAmt and failAmt are not set.
+		if successMsat == 0 && failMsat == 0 {
+			return status.Errorf(codes.InvalidArgument, "%s: "+
+				"either success or failure result required",
+				pairPrefix)
+		}
+
+		// Update fail pair based on validated time and amt values.
+		pair.History.FailAmtMsat = failMsat
+		pair.History.FailAmtSat = failMsat / mSatScale
+		pair.History.FailTime = failTime
+
+		// Update success pair based on validated time and amt values.
+		pair.History.SuccessAmtMsat = successMsat
+		pair.History.SuccessAmtSat = successMsat / mSatScale
+		pair.History.SuccessTime = successTime
 
 		// Validate History data is not stale according to configured
 		// threshold duration.
@@ -471,6 +522,72 @@ func (s *externalCoordinatorServer) sanitizeRegisterMissionControlRequest(req *e
 
 	// Return the number of stale pairs removed.
 	return stalePairsRemoved
+}
+
+// validatePair validates the values provided for a mission control result and
+// returns the msat amount and timestamp for it. `isFailure` can be used to
+// default values to 0 instead of returning an error.
+func validatePair(amtMsat int64, amtSat int64, timestamp int64,
+	isFailure bool) (int64, int64, error) {
+
+	amtMsat, err := validateMsatPairValue(amtMsat, amtSat)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var (
+		timeSet   = timestamp != 0
+		amountSet = amtMsat != 0
+	)
+
+	switch {
+	// If a timestamp and amount if provided, return those values.
+	case timeSet && amountSet:
+		return amtMsat, timestamp, nil
+
+	// Return an error if it does have a timestamp without an amount, and
+	// it's not expected to be a failure.
+	case !isFailure && timeSet && !amountSet:
+		return 0, 0, errors.New("non-zero timestamp requires " +
+			"non-zero amount for success pairs")
+
+	// Return an error if it does have an amount without a timestamp, and
+	// it's not expected to be a failure.
+	case !isFailure && !timeSet && amountSet:
+		return 0, 0, errors.New("non-zero amount for success pairs " +
+			"requires non-zero timestamp")
+
+	default:
+		return 0, 0, nil
+	}
+}
+
+// validateMsatPairValue validates the msat and sat values set for a pair and
+// ensures that the values provided are either the same, or only a single value
+// is set.
+func validateMsatPairValue(msatValue int64, satValue int64) (int64, error) {
+
+	// If our msat value converted to sats equals our sat value, we just
+	// return the msat value, since the values are the same.
+	if msatValue/mSatScale == satValue {
+		return msatValue, nil
+	}
+
+	// If we have no msatValue, we can just return our state value even if
+	// it is zero, because it's impossible that we have mismatched values.
+	if msatValue == 0 {
+		return satValue * mSatScale, nil
+	}
+
+	// Likewise, we can just use msat value if we have no sat value set.
+	if satValue == 0 {
+		return msatValue, nil
+	}
+
+	// If our values are non-zero but not equal, we have invalid amounts
+	// set, so we fail.
+	return 0, status.Errorf(codes.InvalidArgument, "msat: %v and sat: %v "+
+		"values not equal", msatValue, satValue)
 }
 
 // isHistoryStale checks if the history data pair is stale according to the
