@@ -227,8 +227,12 @@ func TestExternalCoordinatorServer(t *testing.T) {
 						NodeFrom: nodeFrom,
 						NodeTo:   nodeTo,
 						History: &ecrpc.PairData{
-							FailAmtSat:  -100,
-							FailAmtMsat: -100 * 1000, // Conversion from sat to msat
+							SuccessTime:    1,
+							FailTime:       1,
+							SuccessAmtSat:  1,
+							SuccessAmtMsat: 1000,
+							FailAmtSat:     -100,
+							FailAmtMsat:    -100 * 1000, // Conversion from sat to msat
 						},
 					},
 				},
@@ -251,8 +255,12 @@ func TestExternalCoordinatorServer(t *testing.T) {
 						NodeFrom: nodeFrom,
 						NodeTo:   nodeTo,
 						History: &ecrpc.PairData{
+							SuccessTime:    1,
+							FailTime:       1,
 							SuccessAmtSat:  -200,
 							SuccessAmtMsat: -200 * 1000, // Conversion from sat to msat
+							FailAmtSat:     1,
+							FailAmtMsat:    1000,
 						},
 					},
 				},
@@ -266,18 +274,18 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			)
 		})
 
-		// Case 9: Inconsistent conversion from sat to msat for fail
-		// amount.
-		t.Run("InconsistentFailAmountConversion", func(t *testing.T) {
-			nodeFrom, nodeTo := generateTestKeys(t)
+		// Case 9: Same Node Source and Destination.
+		t.Run("SameSourceAndDestination", func(t *testing.T) {
+			nodeFrom, _ := generateTestKeys(t)
 			req := &ecrpc.RegisterMissionControlRequest{
 				Pairs: []*ecrpc.PairHistory{
 					{
 						NodeFrom: nodeFrom,
-						NodeTo:   nodeTo,
+						NodeTo:   nodeFrom,
 						History: &ecrpc.PairData{
-							FailAmtSat:  100,
-							FailAmtMsat: 50 * 1000, // Inconsistent conversion
+							SuccessTime:    1,
+							SuccessAmtSat:  1,
+							SuccessAmtMsat: 1000,
 						},
 					},
 				},
@@ -291,32 +299,7 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			)
 		})
 
-		// Case 10: Inconsistent conversion from sat to msat for
-		// success amount.
-		t.Run("InconsistentSuccessAmountConversion", func(t *testing.T) {
-			nodeFrom, nodeTo := generateTestKeys(t)
-			req := &ecrpc.RegisterMissionControlRequest{
-				Pairs: []*ecrpc.PairHistory{
-					{
-						NodeFrom: nodeFrom,
-						NodeTo:   nodeTo,
-						History: &ecrpc.PairData{
-							SuccessAmtSat:  200,
-							SuccessAmtMsat: 150 * 1000, // Inconsistent conversion
-						},
-					},
-				},
-			}
-			_, err := server.RegisterMissionControl(
-				context.Background(), req,
-			)
-			require.Error(t, err)
-			require.Equal(
-				t, codes.InvalidArgument, status.Code(err),
-			)
-		})
-
-		// Case 11: Non-stale history.
+		// Case 10: Non-stale history.
 		t.Run("NonStaleHistory", func(t *testing.T) {
 			// Clear the database.
 			err = clearDatabase(db)
@@ -332,8 +315,12 @@ func TestExternalCoordinatorServer(t *testing.T) {
 						NodeFrom: nodeFrom,
 						NodeTo:   nodeTo,
 						History: &ecrpc.PairData{
-							FailTime:    failTime,
-							SuccessTime: successTime,
+							FailTime:       failTime,
+							SuccessTime:    successTime,
+							FailAmtSat:     1,
+							FailAmtMsat:    1000,
+							SuccessAmtSat:  1,
+							SuccessAmtMsat: 1000,
 						},
 					},
 				},
@@ -361,7 +348,7 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			require.Len(t, mockStream.Responses[0].Pairs, 1)
 		})
 
-		// Case 12: Stale history.
+		// Case 11: Stale history.
 		t.Run("StaleHistory", func(t *testing.T) {
 			// Clear the database.
 			err = clearDatabase(db)
@@ -377,8 +364,12 @@ func TestExternalCoordinatorServer(t *testing.T) {
 						NodeFrom: nodeFrom,
 						NodeTo:   nodeTo,
 						History: &ecrpc.PairData{
-							FailTime:    failTime,
-							SuccessTime: successTime,
+							FailTime:       failTime,
+							SuccessTime:    successTime,
+							FailAmtSat:     1,
+							FailAmtMsat:    1000,
+							SuccessAmtSat:  1,
+							SuccessAmtMsat: 1000,
 						},
 					},
 				},
@@ -404,7 +395,7 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			require.Empty(t, mockStream.Responses)
 		})
 
-		// Case 13: Register new pair with old success and fail times
+		// Case 12: Register new pair with old success and fail times
 		// and verify merging works correctly by persisting only the
 		// already existing pair recent times.
 		t.Run("RegisterNewPairWithOldTimeAndMerge", func(t *testing.T) {
@@ -487,7 +478,7 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			require.Equal(t, gotFailTime, failTime)
 		})
 
-		// Case 14: Register new pair with more recent success and fail
+		// Case 13: Register new pair with more recent success and fail
 		// times and verify merging works correctly by persisting only
 		// the new pair recent times.
 		t.Run("RegisterNewPairWithNewTimeAndMerge", func(t *testing.T) {
@@ -811,8 +802,12 @@ func TestExternalCoordinatorServer(t *testing.T) {
 				Pairs: []*ecrpc.PairHistory{
 					{
 						History: &ecrpc.PairData{
-							FailTime:    failTime,
-							SuccessTime: successTime,
+							FailTime:       failTime,
+							SuccessTime:    successTime,
+							FailAmtSat:     1,
+							FailAmtMsat:    1000,
+							SuccessAmtSat:  1,
+							SuccessAmtMsat: 1000,
 						},
 					},
 				},
@@ -828,14 +823,22 @@ func TestExternalCoordinatorServer(t *testing.T) {
 				Pairs: []*ecrpc.PairHistory{
 					{
 						History: &ecrpc.PairData{
-							FailTime:    time.Now().Add(-15 * time.Minute).Unix(),
-							SuccessTime: time.Now().Add(-12 * time.Minute).Unix(),
+							FailTime:       time.Now().Add(-15 * time.Minute).Unix(),
+							SuccessTime:    time.Now().Add(-12 * time.Minute).Unix(),
+							FailAmtSat:     1,
+							FailAmtMsat:    1000,
+							SuccessAmtSat:  1,
+							SuccessAmtMsat: 1000,
 						},
 					},
 					{
 						History: &ecrpc.PairData{
-							FailTime:    time.Now().Add(-25 * time.Minute).Unix(),
-							SuccessTime: time.Now().Add(-22 * time.Minute).Unix(),
+							FailTime:       time.Now().Add(-25 * time.Minute).Unix(),
+							SuccessTime:    time.Now().Add(-22 * time.Minute).Unix(),
+							FailAmtSat:     1,
+							FailAmtMsat:    1000,
+							SuccessAmtSat:  1,
+							SuccessAmtMsat: 1000,
 						},
 					},
 				},
@@ -1068,14 +1071,16 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			"Failure", func(t *testing.T) {
 			// Initial pair data (existing data).
 			existingData := &ecrpc.PairData{
+				SuccessTime:    1,
 				SuccessAmtSat:  5000,
 				SuccessAmtMsat: 5000000,
 			}
 
 			// New pair data to merge.
 			newData := &ecrpc.PairData{
-				FailTime:   time.Now().Unix(),
-				FailAmtSat: 0,
+				FailTime:    time.Now().Unix(),
+				FailAmtSat:  0,
+				FailAmtMsat: 0,
 			}
 
 			// Merging new data into existing data.
@@ -1093,6 +1098,96 @@ func TestExternalCoordinatorServer(t *testing.T) {
 		})
 	})
 
+	t.Run("validatePair", func(t *testing.T) {
+		// Case 1: Valid timestamp and amount provided.
+		t.Run("ValidTimestampAndAmount", func(t *testing.T) {
+			amtMsat, timestamp, err := validatePair(
+				100000, 100, time.Now().Unix(), false,
+			)
+			require.NoError(t, err)
+			require.NotZero(t, amtMsat)
+			require.NotZero(t, timestamp)
+		})
+
+		// Case 2: Timestamp provided without amount. Non-zero timestamp
+		// requires non-zero amount for success pairs.
+		t.Run("TimestampWithoutAmount", func(t *testing.T) {
+			_, _, err := validatePair(
+				0, 0, time.Now().Unix(), false,
+			)
+			require.Error(t, err)
+		})
+
+		// Case 3: Amount provided without timestamp. Non-zero amount
+		// for success pairs requires non-zero timestamp.
+		t.Run("AmountWithoutTimestamp", func(t *testing.T) {
+			_, _, err := validatePair(
+				100000, 100, 0, false,
+			)
+			require.Error(t, err)
+		})
+
+		// Case 4: Valid timestamp and amount provided for failure
+		// pairs.
+		t.Run("ValidTimestampAndAmountForFailure", func(t *testing.T) {
+			amtMsat, timestamp, err := validatePair(
+				100000, 100, time.Now().Unix(), true,
+			)
+			require.NoError(t, err)
+			require.Equal(t, amtMsat, amtMsat)
+			require.Equal(t, timestamp, timestamp)
+		})
+
+		// Case 5: Timestamp provided without amount for failure pairs.
+		t.Run("TimestampWithoutAmountForFailure", func(t *testing.T) {
+			amtMsat, timestamp, err := validatePair(
+				0, 0, time.Now().Unix(), true,
+			)
+			require.NoError(t, err)
+			require.Equal(t, int64(0), amtMsat)
+			require.Equal(t, int64(0), timestamp)
+		})
+
+		// Case 6: Amount provided without timestamp for failure pairs.
+		t.Run("AmountWithoutTimestampForFailure", func(t *testing.T) {
+			amtMsat, timestamp, err := validatePair(
+				100000, 100, 0, true,
+			)
+			require.NoError(t, err)
+			require.Equal(t, int64(0), amtMsat)
+			require.Equal(t, int64(0), timestamp)
+		})
+	})
+
+	t.Run("validateMsatPairValue", func(t *testing.T) {
+		// Case 1: Both values match after conversion.
+		t.Run("EqualValues", func(t *testing.T) {
+			msat, err := validateMsatPairValue(100000, 100)
+			require.NoError(t, err)
+			require.Equal(t, int64(100000), msat)
+		})
+
+		// Case 2: Zero sat value.
+		t.Run("ZeroSatValue", func(t *testing.T) {
+			msat, err := validateMsatPairValue(100000, 0)
+			require.NoError(t, err)
+			require.Equal(t, int64(100000), msat)
+		})
+
+		// Case 3: Zero msat value.
+		t.Run("ZeroMsatValue", func(t *testing.T) {
+			msat, err := validateMsatPairValue(0, 100)
+			require.NoError(t, err)
+			require.Equal(t, int64(100000), msat)
+		})
+
+		// Case 4: Mismatched values.
+		t.Run("MismatchedValues", func(t *testing.T) {
+			_, err := validateMsatPairValue(100000, 200)
+			require.Error(t, err)
+		})
+	})
+
 	t.Run("isHistoryStale", func(t *testing.T) {
 		t.Parallel()
 
@@ -1101,8 +1196,12 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			failTime := time.Now().Add(-5 * time.Minute).Unix()
 			successTime := time.Now().Add(-2 * time.Minute).Unix()
 			history := &ecrpc.PairData{
-				FailTime:    failTime,
-				SuccessTime: successTime,
+				FailTime:       failTime,
+				SuccessTime:    successTime,
+				FailAmtSat:     1,
+				FailAmtMsat:    1000,
+				SuccessAmtSat:  1,
+				SuccessAmtMsat: 1000,
 			}
 			stale := isHistoryStale(
 				history, config.Server.HistoryThresholdDuration,
@@ -1115,8 +1214,12 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			failTime := time.Now().Add(-15 * time.Minute).Unix()
 			successTime := time.Now().Add(-12 * time.Minute).Unix()
 			history := &ecrpc.PairData{
-				FailTime:    failTime,
-				SuccessTime: successTime,
+				FailTime:       failTime,
+				SuccessTime:    successTime,
+				FailAmtSat:     1,
+				FailAmtMsat:    1000,
+				SuccessAmtSat:  1,
+				SuccessAmtMsat: 1000,
 			}
 			stale := isHistoryStale(
 				history, config.Server.HistoryThresholdDuration,
@@ -1126,8 +1229,12 @@ func TestExternalCoordinatorServer(t *testing.T) {
 			// Make one of the times (failTime) non-stale.
 			failTime = time.Now().Add(-5 * time.Minute).Unix()
 			history = &ecrpc.PairData{
-				FailTime:    failTime,
-				SuccessTime: successTime,
+				FailTime:       failTime,
+				SuccessTime:    successTime,
+				FailAmtSat:     1,
+				FailAmtMsat:    1000,
+				SuccessAmtSat:  1,
+				SuccessAmtMsat: 1000,
 			}
 			stale = isHistoryStale(
 				history, config.Server.HistoryThresholdDuration,

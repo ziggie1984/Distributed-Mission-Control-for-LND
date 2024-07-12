@@ -6,6 +6,7 @@ This script is designed to manage and integrate mission control data between an 
 
 import codecs
 import os
+import time
 import grpc
 import ecrpc.external_coordinator_pb2 as ecrpc
 import ecrpc.external_coordinator_pb2_grpc as ecrpcstub
@@ -79,13 +80,14 @@ def query_mission_control_data_from_lnd(stub) -> list[routerrpc.PairHistory]:
     response = stub.QueryMissionControl(request)
     return response.pairs
 
-def import_mission_control_data_into_lnd(stub, pairs: list[ecrpc.PairHistory]) -> bool:
+def import_mission_control_data_into_lnd(stub, pairs: list[ecrpc.PairHistory], batch_register: int) -> bool:
     """
     Imports mission control data into the LND node.
 
     Args:
         stub: The gRPC stub for the LND router.
         pairs (list): A list of `ecrpc.PairHistory` objects to import.
+        batch_register (int):  The number of pairs to be sent in each batch.
 
     Returns:
         bool: True if the import was successful, otherwise False.
@@ -94,11 +96,15 @@ def import_mission_control_data_into_lnd(stub, pairs: list[ecrpc.PairHistory]) -
     for pair in pairs:
         converted_pairs.append(convert_to_routerrpc_pair_history(pair))
 
-    request = routerrpc.XImportMissionControlRequest(
-        pairs=converted_pairs,
-        force=False
-    )
-    _ = stub.XImportMissionControl(request)
+    for i in range(0, len(converted_pairs), batch_register):
+        batch_pairs = converted_pairs[i:i+batch_register]
+        request = routerrpc.XImportMissionControlRequest(
+            pairs=batch_pairs,
+            force=False,
+            )
+        _ = stub.XImportMissionControl(request)
+        time.sleep(1)
+
     return True
 
 def get_lnd_router_stub(lnd_macaroon_path: str, lnd_tls_cert: str, lnd_grpc_host: str) -> routerstub.RouterStub:
@@ -164,19 +170,23 @@ def register_my_lnd_mission_control_data_with_ec(lnd_router_stub, ec_stub, batch
     register_mission_control(ec_stub, mc_pairs, batch_register)
     return mc_pairs
 
-def import_mission_control_data_from_ec_to_my_lnd(lnd_router_stub, ec_stub) -> list:
+def import_mission_control_data_from_ec_to_my_lnd(lnd_router_stub, ec_stub,
+batch_register: int) -> list:
     """
     Imports mission control data from the External Coordinator to the LND node.
 
     Args:
         lnd_router_stub: The gRPC stub for the LND router.
         ec_stub: The gRPC stub for the External Coordinator.
+        batch_register (int):  The number of pairs to be sent in each batch.
 
     Returns:
         list: A list of mission control control pairs imported into the LND node.
     """
     ec_pairs = query_aggregated_mission_control(stub=ec_stub)
-    import_mission_control_data_into_lnd(lnd_router_stub, ec_pairs)
+    import_mission_control_data_into_lnd(
+        lnd_router_stub, ec_pairs, batch_register,
+    )
     return ec_pairs
 
 def convert_to_ecrpc_pair_history(pair: routerrpc.PairHistory) -> ecrpc.PairHistory:
@@ -237,7 +247,7 @@ if __name__ == "__main__":
     )
 
     # Define configuration variables for the External Coordinator.
-    EC_TLS_CERT = f"EC_DIR/tls.cert"
+    EC_TLS_CERT = "EC_DIR/tls.cert"
     EC_GRPC_HOST = "localhost:50050"
 
     # Create a secure channel and stub to communicate with the External
@@ -267,7 +277,7 @@ if __name__ == "__main__":
     # Import mission control data from the External Coordinator (EC) to the LND
     # node.
     ec_pairs_imported = import_mission_control_data_from_ec_to_my_lnd(
-        lnd_router_stub, ec_stub,
+        lnd_router_stub, ec_stub, BATCH_REGISTER,
     )
     print((
         f"{len(ec_pairs_imported)} EC Mission Control pairs "

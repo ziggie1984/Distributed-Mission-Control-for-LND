@@ -5,6 +5,7 @@ This script is designed to manage and integrate mission control data between an 
 """
 
 import json
+import time
 from typing import Tuple
 import requests
 import codecs
@@ -85,7 +86,7 @@ def query_mission_control_data_from_lnd(macaroon_path: str, tls_cert: str, lnd_r
     response.raise_for_status()
     return response.json().get('pairs', [])
 
-def import_mission_control_data_into_lnd(macaroon_path: str, tls_cert: str, lnd_rest_host: str, pairs: list) -> bool:
+def import_mission_control_data_into_lnd(macaroon_path: str, tls_cert: str, lnd_rest_host: str, pairs: list, batch_register: int) -> bool:
     """
     Imports mission control data into the LND node.
 
@@ -94,6 +95,7 @@ def import_mission_control_data_into_lnd(macaroon_path: str, tls_cert: str, lnd_
         tls_cert (str): Path to the LND TLS certificate file.
         lnd_rest_host (str): The REST host address of the LND node.
         pairs (list): A list of pairs to import.
+        batch_register (int):  The number of pairs to be sent in each batch.
 
     Returns:
         bool: True if the import was successful, otherwise False.
@@ -101,10 +103,15 @@ def import_mission_control_data_into_lnd(macaroon_path: str, tls_cert: str, lnd_
     macaroon = codecs.encode(open(macaroon_path, 'rb').read(), 'hex')
     headers = {'Grpc-Metadata-macaroon': macaroon}
     url = f"https://{lnd_rest_host}/v2/router/x/importhistory"
-    data = {'pairs': pairs, 'force': False}
-    response = requests.post(url, json=data, headers=headers, verify=tls_cert)
-    response.raise_for_status()
-    return response.status_code == 200
+    for i in range(0, len(pairs), batch_register):
+        batch_pairs = pairs[i:i+batch_register]
+        data = {'pairs': batch_pairs, 'force': False}
+        response = requests.post(
+            url, json=data, headers=headers, verify=tls_cert,
+        )
+        response.raise_for_status()
+        time.sleep(1)
+    return True
 
 def register_my_lnd_mission_control_data_with_ec(lnd_macaroon_path: str, lnd_tls_cert: str, lnd_rest_host: str, ec_session: requests.Session, ec_rest_host: str, batch_register: int) -> list:
     """
@@ -129,7 +136,7 @@ def register_my_lnd_mission_control_data_with_ec(lnd_macaroon_path: str, lnd_tls
 
 def import_mission_control_data_from_ec_to_my_lnd(ec_session: requests.Session,
 ec_rest_host: str, lnd_macaroon_path: str, lnd_tls_cert: str,
-lnd_rest_host: str) -> Tuple[bool, list]:
+lnd_rest_host: str, batch_register: int) -> Tuple[bool, list]:
     """
     Imports mission control data from the External Coordinator to the LND node.
 
@@ -139,13 +146,14 @@ lnd_rest_host: str) -> Tuple[bool, list]:
         lnd_macaroon_path (str): Path to the LND macaroon file.
         lnd_tls_cert (str): Path to the LND TLS certificate file.
         lnd_rest_host (str): The REST host address of the LND node.
+        batch_register (int):  The number of pairs to be sent in each batch.
 
     Returns:
         Tuple[bool, list]: A tuple containing a boolean indicating success, and a list of mission control pairs imported into the LND node.
     """
     ec_pairs = query_aggregated_mission_control(ec_session, ec_rest_host)
     import_success = import_mission_control_data_into_lnd(
-        lnd_macaroon_path, lnd_tls_cert, lnd_rest_host, ec_pairs,
+        lnd_macaroon_path, lnd_tls_cert, lnd_rest_host, ec_pairs, batch_register
     )
     return import_success, ec_pairs
 
