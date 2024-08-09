@@ -8,10 +8,13 @@
 
 ### Step 2: Add GOBIN Path to Your $PATH
 1. Open your terminal.
-2. Add the following line to your shell profile file (e.g., `~/.bashrc`, `~/.zshrc`, `~/.profile`):
+2. Add the following lines to your shell profile file (e.g., `~/.bashrc`, `~/.zshrc`, `~/.profile`):
 
 ```sh
-export PATH=$PATH:$(go env GOBIN)
+export GOROOT="/usr/local/go" # your go installation path.
+export GOPATH="$HOME/go"
+export GOBIN="$GOPATH/bin"
+export PATH="$PATH:$GOBIN:$GOROOT/bin"
 ```
 3. Reload your shell profile:
 
@@ -20,10 +23,10 @@ source ~/.bashrc
 ```
 
 ### Step 3: Install Buf
-1. Run the `install_buf.sh` script with `sudo` to ensure it has the necessary permissions to install the binary in `/usr/local/bin`:
+1. Run the `install_buf.sh` script:
 
 ```sh
-sudo ./scripts/install_buf.sh
+./scripts/install_buf.sh
 ```
 
 ### Step 4: Install Protobuf Plugins

@@ -1,3 +1,6 @@
+# Default installation path
+INSTALL_PATH ?= $(HOME)/go/bin
+
 #? build: Build the project and create ec-debug binary
 build: rpc
 	go build -buildvcs=false -o ec-debug
@@ -8,10 +11,9 @@ rpc:
 
 #? install: Install the binary to $(HOME)/go/bin as ec
 install: build
-	cp ec-debug ec
-	mkdir -p $(HOME)/go/bin
-	mv ec $(HOME)/go/bin/
-
+	mv ec-debug ec
+	mkdir -p $(INSTALL_PATH)
+	mv ec $(INSTALL_PATH)
 
 #? test: Run tests with verbose output
 test:

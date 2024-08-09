@@ -70,9 +70,9 @@ const (
 	DefaultRestServerPort = ":8081"
 
 	// DefaultPProfServerHost specifies the default host address that the
-	// pprof server will bind to. By default it binds only to the local
-	// machine.
-	DefaultPProfServerHost = "localhost"
+	// pprof server will bind to. By default it binds to all network
+	// interfaces.
+	DefaultPProfServerHost = "0.0.0.0"
 
 	// DefaultPProfServerPort specifies the default port that the pprof
 	// server will listen on.

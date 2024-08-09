@@ -250,3 +250,7 @@ the cost of increased fees. Therefore, the integration of mission control data
 is highly beneficial for optimizing payment routes in the Lightning Network,
 ensuring a higher likelihood of transaction success, especially in complex
 network environments.
+
+## Additional Resources
+
+- [Dijkstra’s Algorithm: The Greedy Method for Shortest Paths](https://mohamedtechlife.com/dijkstra-greedy-shortest-paths/)
