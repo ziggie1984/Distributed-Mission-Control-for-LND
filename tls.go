@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -38,7 +39,7 @@ func loadTLSCredentials(config *Config) (*tls.Config, error) {
 	// configured.
 	if config.TLS.ThirdPartyTLSCertFile != "" &&
 		config.TLS.ThirdPartyTLSKeyFile != "" {
-
+		logrus.Debug("Attempting to use third-party TLS certificate.")
 		certFile = filepath.Join(
 			config.TLS.ThirdPartyTLSDirPath,
 			config.TLS.ThirdPartyTLSCertFile,
@@ -47,7 +48,6 @@ func loadTLSCredentials(config *Config) (*tls.Config, error) {
 			config.TLS.ThirdPartyTLSDirPath,
 			config.TLS.ThirdPartyTLSKeyFile,
 		)
-
 		// Check if both third-party files exist.
 		err := checkFilesExist(certFile, keyFile)
 		if err == nil {
@@ -67,7 +67,8 @@ func loadTLSCredentials(config *Config) (*tls.Config, error) {
 	// If TLS files are still empty, fall back to local self-signed TLS
 	// certificates.
 	if certFile == "" && keyFile == "" {
-		logrus.Debug("Using local self-signed TLS certificates.")
+		logrus.Debug("Falling back to use local self-signed TLS " +
+			"certificate.")
 		certFile = filepath.Join(
 			config.TLS.SelfSignedTLSDirPath,
 			config.TLS.SelfSignedTLSCertFile,
@@ -83,6 +84,10 @@ func loadTLSCredentials(config *Config) (*tls.Config, error) {
 				"self-signed TLS certificates: %v", err)
 		}
 	}
+
+	// Update internal fields.
+	config.TLS.TLSCertFile = certFile
+	config.TLS.TLSKeyFile = keyFile
 
 	// Load server's certificate and private key.
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -140,6 +145,19 @@ func checkAndCreateSelfSignedTLS(certFile, keyFile string) error {
 // Returns:
 // - An error if the certificate generation fails, or nil if successful.
 func generateSelfSignedTLS(certFile, keyFile string) error {
+	// Define default domain names.
+	domainNames := []string{"localhost", "localhost.localdomain"}
+
+	// Get IP addresses for the eth0 interface.
+	ipAddresses, err := getIPAddresses("eth0")
+	if err != nil {
+		return err
+	}
+
+	// Add loopback addresses for localhost (IPv4 and IPv6).
+	ipAddresses = append(ipAddresses, net.ParseIP("127.0.0.1"))
+	ipAddresses = append(ipAddresses, net.ParseIP("::1"))
+
 	// Generate a new private key for the server using the P-256 curve.
 	serverPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -154,7 +172,7 @@ func generateSelfSignedTLS(certFile, keyFile string) error {
 	serverTemplate := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			Organization: []string{"Self-Signed Server"},
+			Organization: []string{"Development Certificate"},
 		},
 		NotBefore: notBefore,
 		NotAfter:  notAfter,
@@ -164,7 +182,8 @@ func generateSelfSignedTLS(certFile, keyFile string) error {
 		},
 		IsCA:                  true,
 		BasicConstraintsValid: true,
-		DNSNames:              []string{"localhost"},
+		DNSNames:              domainNames,
+		IPAddresses:           ipAddresses,
 	}
 
 	// Create the server certificate signed by itself (self-signed).
@@ -214,6 +233,31 @@ func generateSelfSignedTLS(certFile, keyFile string) error {
 	}
 
 	return nil
+}
+
+// getIPAddresses retrieves the IP addresses associated with a given network
+// interface.
+func getIPAddresses(interfaceName string) ([]net.IP, error) {
+	var ipAddresses []net.IP
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+	for _, iface := range ifaces {
+		if iface.Name == interfaceName {
+			addrs, err := iface.Addrs()
+			if err != nil {
+				return nil, err
+			}
+			for _, addr := range addrs {
+				ipNet, ok := addr.(*net.IPNet)
+				if ok && ipNet.IP != nil {
+					ipAddresses = append(ipAddresses, ipNet.IP)
+				}
+			}
+		}
+	}
+	return ipAddresses, nil
 }
 
 // CreateThirdPartyTLSDirIfNotExist checks if the directory for third-party TLS

@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
-	"path/filepath"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	logrus "github.com/sirupsen/logrus"
@@ -82,14 +81,8 @@ func initializeHTTPServer(ctx context.Context,
 	)
 	mux := runtime.NewServeMux(marshalerOption)
 
-	// Construct the path to the self-signed TLS certificate file.
-	tlsCertPath := filepath.Join(
-		config.TLS.SelfSignedTLSDirPath,
-		config.TLS.SelfSignedTLSCertFile,
-	)
-
 	// Read the certificate file.
-	certBytes, err := os.ReadFile(tlsCertPath)
+	certBytes, err := os.ReadFile(config.TLS.TLSCertFile)
 	if err != nil {
 		return nil, err
 	}
@@ -115,8 +108,7 @@ func initializeHTTPServer(ctx context.Context,
 
 	err = ecrpc.RegisterExternalCoordinatorHandlerFromEndpoint(
 		ctx, mux,
-		"localhost"+config.Server.GRPCServerPort,
-		opts,
+		config.TLS.TLSDomainName+config.Server.GRPCServerPort, opts,
 	)
 	if err != nil {
 		return nil, err
@@ -124,8 +116,7 @@ func initializeHTTPServer(ctx context.Context,
 
 	// Configure HTTP Server settings for the server.
 	httpServer := &http.Server{
-		Addr: config.Server.RESTServerHost +
-			config.Server.RESTServerPort,
+		Addr:      config.Server.RESTServerHost + config.Server.RESTServerPort,
 		Handler:   mux,
 		TLSConfig: tlsConfig,
 	}
@@ -138,16 +129,9 @@ func startHTTPServer(config *Config, httpServer *http.Server) error {
 	logrus.Infof("Starting HTTP/1.1 REST server on https://%s%s",
 		config.Server.RESTServerHost, config.Server.RESTServerPort)
 
-	certFile := filepath.Join(
-		config.TLS.SelfSignedTLSDirPath,
-		config.TLS.SelfSignedTLSCertFile,
+	err := httpServer.ListenAndServeTLS(
+		config.TLS.TLSCertFile, config.TLS.TLSKeyFile,
 	)
-	keyFile := filepath.Join(
-		config.TLS.SelfSignedTLSDirPath,
-		config.TLS.SelfSignedTLSKeyFile,
-	)
-
-	err := httpServer.ListenAndServeTLS(certFile, keyFile)
 	if err != nil && err != http.ErrServerClosed {
 		return err
 	}
@@ -181,15 +165,9 @@ func startPProfServer(config *Config, server *http.Server) error {
 		"https://%s%s", config.PProf.PProfServerHost,
 		config.PProf.PProfServerPort)
 
-	certFile := filepath.Join(
-		config.TLS.SelfSignedTLSDirPath,
-		config.TLS.SelfSignedTLSCertFile,
+	err := server.ListenAndServeTLS(
+		config.TLS.TLSCertFile, config.TLS.TLSKeyFile,
 	)
-	keyFile := filepath.Join(
-		config.TLS.SelfSignedTLSDirPath,
-		config.TLS.SelfSignedTLSKeyFile,
-	)
-	err := server.ListenAndServeTLS(certFile, keyFile)
 	if err != nil && err != http.ErrServerClosed {
 		return err
 	}

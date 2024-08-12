@@ -125,15 +125,16 @@ func TestInitializeHTTPServer(t *testing.T) {
 	}
 
 	// Generate the self-signed TLS certificate.
+	config.TLS.TLSCertFile = filepath.Join(
+		config.TLS.SelfSignedTLSDirPath,
+		config.TLS.SelfSignedTLSCertFile,
+	)
+	config.TLS.TLSKeyFile = filepath.Join(
+		config.TLS.SelfSignedTLSDirPath,
+		config.TLS.SelfSignedTLSKeyFile,
+	)
 	err = generateSelfSignedTLS(
-		filepath.Join(
-			config.TLS.SelfSignedTLSDirPath,
-			config.TLS.SelfSignedTLSCertFile,
-		),
-		filepath.Join(
-			config.TLS.SelfSignedTLSDirPath,
-			config.TLS.SelfSignedTLSKeyFile,
-		),
+		config.TLS.TLSCertFile, config.TLS.TLSKeyFile,
 	)
 	if err != nil {
 		t.Fatalf("Failed to generate a self-signed TLS certificate: "+
@@ -253,7 +254,6 @@ func TestStartGRPCServer(t *testing.T) {
 		config.TLS.SelfSignedTLSDirPath,
 		config.TLS.SelfSignedTLSCertFile,
 	)
-
 	certBytes, err := os.ReadFile(tlsCertPath)
 	if err != nil {
 		t.Fatalf("Failed to read tls certificate: %v", err)
@@ -439,8 +439,6 @@ func TestStartHTTPServer(t *testing.T) {
 		config.TLS.SelfSignedTLSDirPath,
 		config.TLS.SelfSignedTLSCertFile,
 	)
-
-	// Read the tls certificate of the server
 	certBytes, err := os.ReadFile(tlsCertPath)
 	if err != nil {
 		t.Fatalf("Failed to read tls certificate: %v", err)
@@ -610,8 +608,6 @@ func TestStartPProfServer(t *testing.T) {
 		config.TLS.SelfSignedTLSDirPath,
 		config.TLS.SelfSignedTLSCertFile,
 	)
-
-	// Read the tls certificate of the server
 	certBytes, err := os.ReadFile(tlsCertPath)
 	if err != nil {
 		t.Fatalf("Failed to read tls certificate: %v", err)

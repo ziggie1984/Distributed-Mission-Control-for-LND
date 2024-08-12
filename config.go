@@ -43,6 +43,9 @@ const (
 	// storing third-party TLS certificates.
 	DefaultThirdPartyTLSDirname = "third_party_tls"
 
+	// DefaultTLSDomainName is the default domain name for tls certificates.
+	DefaultTLSDomainName = "localhost"
+
 	// DefaultLogDirname is the default directory name for storing log
 	// files.
 	DefaultLogDirname = "logs"
@@ -52,27 +55,27 @@ const (
 	DefaultLogFilename = "ec.log"
 
 	// DefaultGrpcServerHost specifies the default host address that the
-	// gRPC server will bind to. By default it binds to all network
-	// interfaces.
-	DefaultGrpcServerHost = "0.0.0.0"
+	// gRPC server will bind to. By default, it binds to all network
+	// interfaces including both IPv4 and IPv6.
+	DefaultGrpcServerHost = "[::]"
 
 	// DefaultGrpcServerPort specifies the default port that the gRPC
 	// server will listen on.
 	DefaultGrpcServerPort = ":50050"
 
 	// DefaultRestServerHost specifies the default host address that the
-	// REST server will bind to. By default it binds to all network
-	// interfaces.
-	DefaultRestServerHost = "0.0.0.0"
+	// REST server will bind to. By default, it binds to all network
+	// interfaces including both IPv4 and IPv6.
+	DefaultRestServerHost = "[::]"
 
 	// DefaultRestServerPort specifies the default port that the REST
 	// server will listen on.
 	DefaultRestServerPort = ":8081"
 
 	// DefaultPProfServerHost specifies the default host address that the
-	// pprof server will bind to. By default it binds to all network
-	// interfaces.
-	DefaultPProfServerHost = "0.0.0.0"
+	// pprof server will bind to. By default it binds only to the local
+	// machine (IPv4 loopback address).
+	DefaultPProfServerHost = "localhost"
 
 	// DefaultPProfServerPort specifies the default port that the pprof
 	// server will listen on.
@@ -183,9 +186,9 @@ type Config struct {
 
 // ServerConfig holds the server configuration values.
 type ServerConfig struct {
-	GRPCServerHost               string        `mapstructure:"grpc_server_host" description:"The host address for the gRPC server. Specify the IP address or hostname that the gRPC server will bind to. Default is '0.0.0.0', which represents all available network interfaces."`
+	GRPCServerHost               string        `mapstructure:"grpc_server_host" description:"The host address for the gRPC server. Specify the IP address or hostname that the gRPC server will bind to. Default is '[::]', which represents all available network interfaces."`
 	GRPCServerPort               string        `mapstructure:"grpc_server_port" description:"The port number for the gRPC server. This is the port on which the gRPC server will listen for incoming connections."`
-	RESTServerHost               string        `mapstructure:"rest_server_host" description:"The host address for the RESTful server interface provided via gRPC Gateway. It determines the network address the HTTP server binds to. Default is '0.0.0.0, which represents all available network interfaces."`
+	RESTServerHost               string        `mapstructure:"rest_server_host" description:"The host address for the RESTful server interface provided via gRPC Gateway. It determines the network address the HTTP server binds to. Default is '[::]', which represents all available network interfaces."`
 	RESTServerPort               string        `mapstructure:"rest_server_port" description:"The port number for the RESTful HTTP server. This port will be used for handling HTTP requests that are translated into gRPC calls."`
 	HistoryThresholdDuration     time.Duration `mapstructure:"history_threshold_duration" description:"The duration threshold for history data pair, by default set to 7 days. If historical data pair exceed this threshold, It is considered too old and will be removed from the database. This threshold is also used to validate and sanitize against the mission control data being registered."`
 	StaleDataCleanupInterval     time.Duration `mapstructure:"stale_data_cleanup_interval" description:"The interval for cleaning up stale mission control data from the database, by default set to 24 hours i.e. the cleanup will happen every day."`
@@ -206,6 +209,9 @@ type TLSConfig struct {
 	ThirdPartyTLSDirPath  string `mapstructure:"third_party_tls_dir_path" description:"Directory path that stores third-party TLS certificates, if available. This is used when certificates are provided by an external certificate authority."`
 	ThirdPartyTLSCertFile string `mapstructure:"third_party_tls_cert_file" description:"Filename of the third-party TLS certificate. This certificate is used if available, falling back to self-signed if not."`
 	ThirdPartyTLSKeyFile  string `mapstructure:"third_party_tls_key_file" description:"Filename of the private key for the third-party TLS certificate."`
+	TLSDomainName         string `mapstructure:"tls_domain_name" description:"The domain name associated with this TLS configuration. This is used to determine the correct certificate and key for the given domain."`
+	TLSCertFile           string `description:"This field is updated by the application to point to the specific TLS certificate file that the server should use, based on the business logic. The application might choose this certificate from the self-signed set, the third-party set, or another source." ignore:"true"`
+	TLSKeyFile            string `description:"Similar to TLSCertFile, this field is updated by the application to specify the private key file corresponding to the chosen TLS certificate. The application’s logic determines whether this should be the key for the self-signed certificate, the third-party certificate, or another key." ignore:"true"`
 }
 
 // DatabaseConfig holds the database configuration values.
@@ -252,6 +258,7 @@ func DefaultConfig() (Config, error) {
 			SelfSignedTLSKeyFile:  DefaultTLSKeyFilename,
 			ThirdPartyTLSDirPath: filepath.Join(appPath,
 				DefaultThirdPartyTLSDirname),
+			TLSDomainName: DefaultTLSDomainName,
 		},
 		Database: DatabaseConfig{
 			DatabaseDirPath: filepath.Join(appPath,
@@ -339,6 +346,12 @@ func writeConfigSection(w io.Writer, val reflect.Value, typ reflect.Type,
 		fieldType := typ.Field(i)
 		iniTag := fieldType.Tag.Get("mapstructure")
 		descTag := fieldType.Tag.Get("description")
+		ignoreTag := fieldType.Tag.Get("ignore")
+
+		// Skip fields with the "ignore" tag.
+		if ignoreTag == "true" {
+			continue
+		}
 
 		// Format description text to fit within 80 characters.
 		wrappedDesc := wrapText(descTag, 80)

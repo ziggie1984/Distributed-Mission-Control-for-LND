@@ -20,6 +20,9 @@ RUN git clone https://github.com/ziggie1984/Distributed-Mission-Control-for-LND.
 RUN /app/scripts/install_buf.sh && \
     /app/scripts/install_protobuf_plugins.sh
 
+# Change current working directory.
+WORKDIR /app
+
 # Install Go modules.
 RUN go mod download
 
