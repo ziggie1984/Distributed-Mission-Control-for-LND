@@ -34,14 +34,13 @@ instructions on the
 After building the Docker image, you can start the container using:
 
 ```bash
-docker run --rm -p 50050:50050 -p 6060:6060 -p 8081:8081 --name ec-daemon-container ec-daemon
+docker run -p 50050:50050 -p 127.0.0.1:6060:6060 -p 8081:8081 --name ec-daemon-container ec-daemon
 ```
 
 ### Explanation
 
-- `--rm`: Automatically remove the container when it exits.
 - `-p 50050:50050`: Map port 50050 of the host to port 50050 of the container for gRPC communication.
-- `-p 6060:6060`: Map port 6060 of the host to port 6060 of the container for pprof communication.
+- `-p 127.0.0.1:6060:6060`: Maps port 6060 of `127.0.0.1` on the host to port 6060 of the container for pprof communication, binding it specifically to localhost to restrict access to the local machine.
 - `-p 8081:8081`: Map port 8081 of the host to port 8081 of the container for HTTP/1.1 REST communication.
 - `--name ec-daemon-container`: Assign a name to the container for easier management.
 - `ec-daemon`: The name of the Docker image to run.
@@ -58,8 +57,8 @@ docker run --rm -p 50050:50050 -p 6060:6060 -p 8081:8081 --name ec-daemon-contai
 
 2. **Access the Exposed Ports**
 
-   - **gRPC Communication**: Connect to `localhost:50050`.
-   - **HTTP/1.1 REST Communication**: Access the REST API at `localhost:8081`.
+   - **gRPC Communication**: Connect to `<your_ec_domain>:50050`.
+   - **HTTP/1.1 REST Communication**: Access the REST API at `<your_ec_domain>:8081`.
    - **pprof Communication**: Access pprof at `localhost:6060`.
 
 ## Stopping the Container
