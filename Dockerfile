@@ -5,6 +5,7 @@ FROM golang:1.22.2 AS build
 RUN apt-get update && \
     apt-get install -y \
         git \
+        vim \
         curl \
         build-essential \
         protobuf-compiler \
@@ -33,7 +34,7 @@ RUN make build
 RUN make install INSTALL_PATH="/go/bin"
 
 # Add a non-root user for security.
-RUN useradd -ms /bin/sh ecuser
+RUN useradd -u 2000 -ms /bin/sh ecuser
 USER ecuser
 
 # Expose port 50050 for gRPC communication.

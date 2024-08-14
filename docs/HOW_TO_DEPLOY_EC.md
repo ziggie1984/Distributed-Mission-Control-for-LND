@@ -34,15 +34,23 @@ instructions on the
 After building the Docker image, you can start the container using:
 
 ```bash
-docker run -p 50050:50050 -p 127.0.0.1:6060:6060 -p 8081:8081 --name ec-daemon-container ec-daemon
+docker run -d -p 50050:50050 -p 127.0.0.1:6060:6060 -p 8081:8081 \
+-v /home/ecuser/.ec:/home/ecuser/.ec --name ec-daemon-container ec-daemon
 ```
 
 ### Explanation
 
-- `-p 50050:50050`: Map port 50050 of the host to port 50050 of the container for gRPC communication.
-- `-p 127.0.0.1:6060:6060`: Maps port 6060 of `127.0.0.1` on the host to port 6060 of the container for pprof communication, binding it specifically to localhost to restrict access to the local machine.
-- `-p 8081:8081`: Map port 8081 of the host to port 8081 of the container for HTTP/1.1 REST communication.
-- `--name ec-daemon-container`: Assign a name to the container for easier management.
+- `-p 50050:50050`: Map port 50050 of the host to port 50050 of the container
+for gRPC communication.
+- `-p 127.0.0.1:6060:6060`: Maps port 6060 of `127.0.0.1` on the host to port
+6060 of the container for pprof communication, binding it specifically to
+localhost to restrict access to the local machine.
+- `-p 8081:8081`: Map port 8081 of the host to port 8081 of the container for
+HTTP/1.1 REST communication.
+- `-v /home/ecuser/.ec:/home/ecuser/.ec`: This binds the host directory
+`/home/ecuser/.ec` to the container directory `/home/ecuser/.ec`.
+- `--name ec-daemon-container`: Assign a name to the container for easier
+management.
 - `ec-daemon`: The name of the Docker image to run.
 
 ## Verifying the Deployment
