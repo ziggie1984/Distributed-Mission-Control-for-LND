@@ -12,13 +12,13 @@ import ecrpc.external_coordinator_pb2 as ecrpc
 import ecrpc.external_coordinator_pb2_grpc as ecrpcstub
 import lnrpc.router_pb2 as routerrpc, lnrpc.router_pb2_grpc as routerstub
 
-def get_secure_channel(target: str, cert: str) -> grpc.Channel:
+def get_self_signed_channel(target: str, cert: str):
     """
-    Creates a secure gRPC channel using SSL credentials.
+    Creates a secure gRPC channel using a self-signed certificate.
 
     Args:
-        target (str): The target server address.
-        cert (str): Path to the SSL certificate file.
+        target (str): The server address (e.g., 'localhost:50051').
+        cert (str): Path to the self-signed certificate file.
 
     Returns:
         grpc.Channel: A secure gRPC channel.
@@ -26,6 +26,20 @@ def get_secure_channel(target: str, cert: str) -> grpc.Channel:
     with open(cert, 'rb') as f:
         trusted_certs = f.read()
     credentials = grpc.ssl_channel_credentials(root_certificates=trusted_certs)
+    return grpc.secure_channel(target, credentials)
+
+def get_trusted_ca_channel(target: str):
+    """
+    Creates a secure gRPC channel using certificates from a trusted CA.
+
+    Args:
+        target (str): The server address (e.g., 'example.com:50051').
+
+    Returns:
+        grpc.Channel: A secure gRPC channel.
+    """
+    # Use default system-trusted CA certificates.
+    credentials = grpc.ssl_channel_credentials()
     return grpc.secure_channel(target, credentials)
 
 def query_aggregated_mission_control(stub) -> list:
@@ -237,9 +251,10 @@ def convert_to_routerrpc_pair_history(pair: ecrpc.PairHistory) -> routerrpc.Pair
 
 if __name__ == "__main__":
     # Define configuration variables for the LND node.
-    LND_GRPC_HOST = 'localhost:10009'
-    LND_MACAROON_PATH = 'LND_DIR/data/chain/bitcoin/regtest/admin.macaroon'
-    LND_TLS_CERT = 'LND_DIR/tls.cert'
+    LND_GRPC_HOST = '<your_lnd_host>:10009'
+    LND_DIR="<your_lnd_config_and_data_dir>"
+    LND_MACAROON_PATH = f'{LND_DIR}/data/chain/bitcoin/regtest/admin.macaroon'
+    LND_TLS_CERT = f'{LND_DIR}/tls.cert'
 
     # Create a stub to communicate with the LND node.
     lnd_router_stub = get_lnd_router_stub(
@@ -247,14 +262,12 @@ if __name__ == "__main__":
     )
 
     # Define configuration variables for the External Coordinator.
-    EC_TLS_CERT = "EC_DIR/tls.cert"
-    EC_GRPC_HOST = "localhost:50050"
+    EC_GRPC_HOST = "<your_ec_domain>:50050"
 
     # Create a secure channel and stub to communicate with the External
     # Coordinator.
-    ec_channel = get_secure_channel(
-        target=EC_GRPC_HOST, cert=EC_TLS_CERT,
-    )
+    ec_channel = get_trusted_ca_channel(EC_GRPC_HOST)
+
     ec_stub = ecrpcstub.ExternalCoordinatorStub(ec_channel)
 
     # BATCH_REGISTER is the default number of pairs to be sent in each batch

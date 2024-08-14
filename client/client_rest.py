@@ -10,18 +10,48 @@ from typing import Tuple
 import requests
 import codecs
 
-def get_secure_session(cert: str) -> requests.Session:
+def get_self_signed_session(cert: str) -> requests.Session:
     """
-    Creates a secure requests session using SSL credentials.
+    Creates a requests session using a self-signed SSL certificate.
+
+    This function configures a requests session to trust a self-signed SSL certificate for secure communication.
 
     Args:
-        cert (str): Path to the SSL certificate file.
+        cert (str): Path to the self-signed SSL certificate file.
 
     Returns:
-        requests.Session: A secure requests session.
+        requests.Session: A requests session configured to use the provided self-signed SSL certificate.
     """
     session = requests.Session()
     session.verify = cert
+    return session
+
+def get_trusted_ca_session() -> requests.Session:
+    """
+    Creates a requests session that trusts all CA certificates.
+
+    This session is used when the server's certificate is trusted and there is no need for certificate verification.
+
+    Returns:
+        requests.Session: A requests session that trusts all CA certificates.
+    """
+    session = requests.Session()
+    session.verify = True
+    return session
+
+
+def get_insecure_session() -> requests.Session:
+    """
+    Creates a requests session that does not verify SSL certificates.
+
+    This session is used when the server's certificate is not trusted or verification is not required.
+    **Warning:** This should only be used in non-production environments as it makes the connection susceptible to man-in-the-middle attacks.
+
+    Returns:
+        requests.Session: An insecure requests session that does not verify SSL certificates.
+    """
+    session = requests.Session()
+    session.verify = False
     return session
 
 def query_aggregated_mission_control(session: requests.Session, ec_rest_host: str) -> list:
@@ -159,20 +189,20 @@ lnd_rest_host: str, batch_register: int) -> Tuple[bool, list]:
 
 if __name__ == "__main__":
     # Define configuration variables for the LND node.
-    LND_REST_HOST = 'localhost:8080'
-    LND_MACAROON_PATH = 'LND_DIR/data/chain/bitcoin/regtest/admin.macaroon'
-    LND_TLS_CERT = 'LND_DIR/tls.cert'
+    LND_REST_HOST = '<your_lnd_host>:8080'
+    LND_DIR="<your_lnd_config_and_data_dir>"
+    LND_MACAROON_PATH = f'{LND_DIR}/data/chain/bitcoin/regtest/admin.macaroon'
+    LND_TLS_CERT = f'{LND_DIR}/tls.cert'
 
     # Define configuration variables for the External Coordinator.
-    EC_REST_HOST = 'localhost:8081'
-    EC_TLS_CERT = "EC_DIR/tls.cert"
+    EC_REST_HOST = 'https://<your_ec_domain>:8081'
 
     # Create a secure session to communicate with the External Coordinator.
-    ec_session = get_secure_session(cert=EC_TLS_CERT)
+    ec_session = get_trusted_ca_session()
 
     # BATCH_REGISTER is the default number of pairs to be sent in each batch
     # when registering the aggregated mission control data. The chosen value
-    # here 2000 mc pairs is not based on observations for historical mission
+    # here 2000 mc pairs is based on observationsq for historical mission
     # control json data size. This is about 1024 KB (1 MB).
     BATCH_REGISTER = 2000
 
