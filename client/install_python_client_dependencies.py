@@ -31,10 +31,19 @@ else:
 
 # Define a helper function to run a command in the virtual environment.
 def run_in_venv(command):
+    activate_script = ""
+    if os.name == 'nt':
+        activate_script = ".ecrpc_client\\Scripts\\activate"
+    else:
+        activate_script = ".ecrpc_client/bin/activate"
+
+    # Check if it is Windows OS.
     if os.name == 'nt':
         command = f"{activate_script} && {command}"
     else:
-        command = f"source {activate_script} && {command}"
+        # Otherwise it is Unix/Linux/Mac
+        command = f"bash -c 'source {activate_script} && {command}'"
+
     subprocess.run(command, shell=True, check=True)
 
 # Install the required Python packages.
@@ -55,7 +64,7 @@ urlretrieve("https://raw.githubusercontent.com/lightningnetwork/lnd/master/lnrpc
 # Generate the gRPC client code for lightning.proto.
 print("Generating gRPC client code for lightning.proto")
 subprocess.run([
-    sys.executable, "-m", "grpc_tools.protoc",
+    ".ecrpc_client/bin/python", "-m", "grpc_tools.protoc",
     f"--proto_path={GOOGLE_APIS_DIR}", f"--proto_path={os.getcwd()}",
     f"--python_out={CLIENT_LNRPC}", f"--grpc_python_out={CLIENT_LNRPC}",
     LIGHTNING_PROTO_FILE
@@ -68,7 +77,7 @@ urlretrieve("https://raw.githubusercontent.com/lightningnetwork/lnd/master/lnrpc
 # Generate the gRPC client code for router.proto.
 print("Generating gRPC client code for router.proto")
 subprocess.run([
-    sys.executable, "-m", "grpc_tools.protoc",
+    ".ecrpc_client/bin/python", "-m", "grpc_tools.protoc",
     f"--proto_path={GOOGLE_APIS_DIR}", f"--proto_path={os.getcwd()}",
     f"--python_out={CLIENT_LNRPC}", f"--grpc_python_out={CLIENT_LNRPC}",
     ROUTER_PROTO_FILE

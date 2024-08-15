@@ -65,7 +65,7 @@ def query_aggregated_mission_control(session: requests.Session, ec_rest_host: st
     Returns:
         list: A list of pairs from the aggregated mission control data.
     """
-    url = f"https://{ec_rest_host}/v1/query_aggregated_mission_control"
+    url = f"{ec_rest_host}/v1/query_aggregated_mission_control"
     response = session.get(url, stream=True)
     response.raise_for_status()
     
@@ -89,7 +89,7 @@ def register_mission_control(session: requests.Session, ec_rest_host: str, pairs
     Returns:
         bool: boolean flag to indicate if registration's successful.
     """
-    url = f"https://{ec_rest_host}/v1/register_mission_control"
+    url = f"{ec_rest_host}/v1/register_mission_control"
 
     for i in range(0, len(pairs), batch_register):
         data = {'pairs': pairs[i:i+batch_register]}
@@ -223,7 +223,7 @@ if __name__ == "__main__":
     success, ec_pairs_imported = import_mission_control_data_from_ec_to_my_lnd(
         ec_session=ec_session, ec_rest_host=EC_REST_HOST,
         lnd_macaroon_path=LND_MACAROON_PATH, lnd_tls_cert=LND_TLS_CERT,
-        lnd_rest_host=LND_REST_HOST
+        lnd_rest_host=LND_REST_HOST, batch_register=BATCH_REGISTER
     )
     if success:
         print((
