@@ -146,3 +146,7 @@ and ensuring sustainable impact through robust data validation mechanisms. This
 project holds the potential to significantly enhance the efficiency,
 reliability, and privacy of the Lightning Network, benefiting both wallet users
 and node operators.
+
+## Blog Posts
+
+- [How Mission Control Data Enhances LND Pathfinding](https://mohamedtechlife.com/how-mission-control-data-enhances-lnd-pathfinding/)

@@ -6,3 +6,11 @@ This project would use LND’s Mission Control API calls to implement a dynamic 
 
 
 This project is part of the https://github.com/lightningnetwork ecosystem.
+
+## High-Level Design Architecture
+
+![DMC for LND High-Level Design Architecture](./assets/dmc-for-lnd-hld-architecture.png)
+
+## Blog Posts
+
+- [Summer of Bitcoin 2024 - Mohamed Awnallah](https://mohamedtechlife.com/tag/summer-of-bitcoin-2024/)

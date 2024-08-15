@@ -100,8 +100,7 @@ concurrent users, there are areas for optimization in registration operations
 from the client side.
 
 ## 4. Acceptance Testing
-TODO(mohamedawnallah): Acceptance testing is an ongoing effort. For more
-details, refer to the
+
 [Acceptance Testing Distributed Mission Control EC repository](https://github.com/mohamedawnallah/Acceptance-Testing-Distributed-Mission-Control-EC).
 
 <!-- ##### Definition and Importance
@@ -117,3 +116,4 @@ as intended from an end-user perspective.
 ## 5. Summary of Results
 - **Automated Testing**: Achieved 74% test coverage, identifying and fixing several bugs.
 - **Stress Testing**: Successfully handled 50,000 concurrent users with acceptable query response times and identified areas for optimization in registration operations from the client side.
+- **Acceptance Testing**

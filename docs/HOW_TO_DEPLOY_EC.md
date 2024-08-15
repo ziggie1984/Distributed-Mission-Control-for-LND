@@ -84,3 +84,7 @@ If you encounter issues, consider the following:
 - **Docker Daemon**: Ensure Docker is running correctly.
 - **Container Logs**: Check logs using `docker logs` for errors or warnings.
 - **Port Conflicts**: Ensure that the ports are not in use by other applications on your host.
+
+## Blog Posts
+
+- [How to Self-Host the External Coordinator (EC)](https://mohamedtechlife.com/how-to-self-host-ec)
