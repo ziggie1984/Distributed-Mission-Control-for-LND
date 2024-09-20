@@ -253,4 +253,4 @@ network environments.
 
 ## Additional Resources
 
-- [Dijkstra’s Algorithm: The Greedy Method for Shortest Paths](https://mohamedtechlife.com/dijkstra-greedy-shortest-paths/)
+- [Dijkstra’s Algorithm: The Greedy Method for Shortest Paths](https://mohamedawn.com/dijkstra-greedy-shortest-paths/)

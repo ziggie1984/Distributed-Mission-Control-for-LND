@@ -13,4 +13,4 @@ This project is part of the https://github.com/lightningnetwork ecosystem.
 
 ## Blog Posts
 
-- [Summer of Bitcoin 2024 - Mohamed Awnallah](https://mohamedtechlife.com/tag/summer-of-bitcoin-2024/)
+- [Summer of Bitcoin 2024 - Mohamed Awnallah](https://mohamedawn.com/tag/summer-of-bitcoin-2024/)

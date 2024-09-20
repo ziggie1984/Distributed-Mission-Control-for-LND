@@ -149,4 +149,4 @@ and node operators.
 
 ## Blog Posts
 
-- [How Mission Control Data Enhances LND Pathfinding](https://mohamedtechlife.com/how-mission-control-data-enhances-lnd-pathfinding/)
+- [How Mission Control Data Enhances LND Pathfinding](https://mohamedawn.com/how-mission-control-data-enhances-lnd-pathfinding/)

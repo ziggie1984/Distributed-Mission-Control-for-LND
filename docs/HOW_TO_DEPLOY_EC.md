@@ -87,4 +87,5 @@ If you encounter issues, consider the following:
 
 ## Blog Posts
 
-- [How to Self-Host the External Coordinator (EC)](https://mohamedtechlife.com/how-to-self-host-ec)
+- [How to Self-Host the External Coordinator (EC) - Website](https://mohamedawn.com/how-to-self-host-ec)
+- [How to Self-Host the External Coordinator (EC) - Doc](../assets/How%20to%20Self-Host%20the%20External%20Coordinator%20EC.pdf)
